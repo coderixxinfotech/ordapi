@@ -659,6 +659,67 @@ fn try_reinscribe_without_flag() {
 }
 
 #[test]
+fn inscribe_to_opendime() {
+  let rpc_server = test_bitcoincore_rpc::spawn();
+  rpc_server.mine_blocks(1);
+
+  create_wallet(&rpc_server);
+
+  let opendime_dir = TempDir::new().unwrap();
+
+  let mut address_string = "1MDtfy1fdyCWERQiqJY7FtT7m5i1vckR8K"
+    .parse::<Address<NetworkUnchecked>>()
+    .unwrap()
+    .assume_checked()
+    .to_string();
+  address_string.push('\n');
+  address_string.push('\r');
+
+  fs::write(opendime_dir.path().join("address.txt"), address_string).unwrap();
+
+  let _inscribe: Inscribe = CommandBuilder::new(format!(
+    "wallet inscribe orchid.png --fee-rate 1.1 --to-opendime {}",
+    opendime_dir.path().display()
+  ))
+  .write("orchid.png", [1; 520])
+  .rpc_server(&rpc_server)
+  .expected_exit_code(0)
+  .run_and_deserialize_output();
+}
+
+#[test]
+fn inscribe_to_opendime_with_signet_fails() {
+  let rpc_server = test_bitcoincore_rpc::builder()
+    .network(Network::Signet)
+    .build();
+
+  rpc_server.mine_blocks(1);
+
+  create_wallet(&rpc_server);
+
+  let opendime_dir = TempDir::new().unwrap();
+
+  let mut address_string = "1MDtfy1fdyCWERQiqJY7FtT7m5i1vckR8K"
+    .parse::<Address<NetworkUnchecked>>()
+    .unwrap()
+    .assume_checked()
+    .to_string();
+  address_string.push('\n');
+  address_string.push('\r');
+
+  fs::write(opendime_dir.path().join("address.txt"), address_string).unwrap();
+
+  CommandBuilder::new(format!(
+    "--signet wallet inscribe orchid.png --fee-rate 1.1 --to-opendime {}",
+    opendime_dir.path().display()
+  ))
+  .write("orchid.png", [1; 520])
+  .rpc_server(&rpc_server)
+  .expected_exit_code(1)
+  .stderr_regex("error: This feature only works on mainnet.\n");
+}
+
+#[test]
 fn no_metadata_appears_on_inscription_page_if_no_metadata_is_passed() {
   let rpc_server = test_bitcoincore_rpc::spawn();
   create_wallet(&rpc_server);
