@@ -13,7 +13,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       BRANCH_NAME: ${GITHUB_REF##*/}
-      IMAGE_NAME: ordapi:${GITHUB_REF##*/}
+      IMAGE_NAME: crypticmetadev/ordapi:${GITHUB_REF##*/}
 
     steps:
       - name: Checkout code
