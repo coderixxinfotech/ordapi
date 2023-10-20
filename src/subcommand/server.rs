@@ -39,6 +39,8 @@ use {
   },
 };
 
+use crate::templates::inscription::ExtendedInscriptionJson;
+
 mod accept_json;
 mod error;
 
@@ -132,6 +134,12 @@ pub(crate) struct Server {
   redirect_http_to_https: bool,
 }
 
+#[derive(Serialize)]
+struct FeedItem {
+  href: String,
+  title: String,
+}
+
 impl Server {
   pub(crate) fn run(self, options: Options, index: Arc<Index>, handle: Handle) -> SubcommandResult {
     Runtime::new()?.block_on(async {
@@ -160,8 +168,48 @@ impl Server {
         domain: acme_domains.first().cloned(),
       });
 
+      let api_routes = Router::new()
+        .route("/", get(Self::home))
+        .route("/block/:query", get(Self::block))
+        .route("/blockcount", get(Self::block_count))
+        .route("/blockheight", get(Self::block_height))
+        .route("/blockhash", get(Self::block_hash))
+        .route("/blockhash/:height", get(Self::block_hash_from_height))
+        .route("/blocktime", get(Self::block_time))
+        // .route("/content/:inscription_id", get(Self::content))
+        .route("/feed", get(Self::api_feed))
+        // .route("/input/:block/:transaction/:input", get(Self::input))
+        .route(
+          "/inscription/:inscription_query",
+          get(Self::api_inscription),
+        )
+        .route("/inscriptions", get(Self::api_inscriptions))
+        .route(
+          "/inscriptions/block/:height",
+          get(Self::api_inscriptions_in_block),
+        )
+        .route(
+          "/inscriptions/block/:height/:page_index",
+          get(Self::api_inscriptions_in_block_from_page),
+        )
+        .route("/inscriptions/:from", get(Self::api_inscriptions_from))
+        .route("/inscriptions/:from/:n", get(Self::api_inscriptions_from_n))
+        // .route("/ordinal/:sat", get(Self::ordinal))
+        .route("/output/:output", get(Self::api_output))
+        // .route("/preview/:inscription_id", get(Self::preview))
+        .route("/range/:start/:end", get(Self::range))
+        // .route("/rare.txt", get(Self::rare_txt))
+        // .route("/rune/:rune", get(Self::rune))
+        // .route("/runes", get(Self::runes))
+        .route("/sat/:sat", get(Self::api_sat))
+        .route("/search", get(Self::search_by_query))
+        .route("/search/*query", get(Self::search_by_path))
+        // .route("/status", get(Self::status))
+        .route("/tx/:txid", get(Self::transaction));
+
       let router = Router::new()
         .route("/", get(Self::home))
+        .nest("/api", api_routes)
         .route("/block/:query", get(Self::block))
         .route("/blockcount", get(Self::block_count))
         .route("/blockheight", get(Self::block_height))
@@ -314,6 +362,292 @@ impl Server {
       }
     }))
   }
+
+  // API CODE STARTS
+
+  async fn api_sat(
+    Extension(_page_config): Extension<Arc<PageConfig>>,
+    Extension(index): Extension<Arc<Index>>,
+    Path(DeserializeFromStr(sat)): Path<DeserializeFromStr<Sat>>,
+    _accept_json: AcceptJson,
+  ) -> ServerResult<Response> {
+    let inscriptions = index.get_inscription_ids_by_sat(sat)?;
+    let satpoint = index.rare_sat_satpoint(sat)?.or_else(|| {
+      inscriptions.first().and_then(|&first_inscription_id| {
+        index
+          .get_inscription_satpoint_by_id(first_inscription_id)
+          .ok()
+          .flatten()
+      })
+    });
+    let blocktime = index.block_time(sat.height())?;
+    Ok(
+      Json(SatJson {
+        number: sat.0,
+        decimal: sat.decimal().to_string(),
+        degree: sat.degree().to_string(),
+        name: sat.name(),
+        block: sat.height().0,
+        cycle: sat.cycle(),
+        epoch: sat.epoch().0,
+        period: sat.period(),
+        offset: sat.third(),
+        rarity: sat.rarity(),
+        percentile: sat.percentile(),
+        satpoint,
+        timestamp: blocktime.timestamp().timestamp(),
+        inscriptions,
+      })
+      .into_response(),
+    )
+  }
+
+  async fn api_inscription(
+    Extension(page_config): Extension<Arc<PageConfig>>,
+    Extension(index): Extension<Arc<Index>>,
+    Path(inscription_id): Path<InscriptionId>,
+    _accept_json: AcceptJson,
+  ) -> ServerResult<Response> {
+    let entry = index
+      .get_inscription_entry(inscription_id)?
+      .ok_or_not_found(|| format!("inscription {inscription_id}"))?;
+
+    let inscription = index
+      .get_inscription_by_id(inscription_id)?
+      .ok_or_not_found(|| format!("inscription {inscription_id}"))?;
+
+    let satpoint = index
+      .get_inscription_satpoint_by_id(inscription_id)?
+      .ok_or_not_found(|| format!("inscription {inscription_id}"))?;
+
+    let output = if satpoint.outpoint == unbound_outpoint() {
+      None
+    } else {
+      Some(
+        index
+          .get_transaction(satpoint.outpoint.txid)?
+          .ok_or_not_found(|| format!("inscription {inscription_id} current transaction"))?
+          .output
+          .into_iter()
+          .nth(satpoint.outpoint.vout.try_into().unwrap())
+          .ok_or_not_found(|| format!("inscription {inscription_id} current transaction output"))?,
+      )
+    };
+
+    let previous = index.get_inscription_id_by_inscription_number(entry.number - 1)?;
+
+    let next = index.get_inscription_id_by_inscription_number(entry.number + 1)?;
+
+    let children = index.get_children_by_inscription_id(inscription_id)?;
+
+    let sat = entry.sat;
+
+    // Mapping methods over Option<Sat> to extract properties
+    let number = sat.map(|s| s.0);
+    let decimal = sat.as_ref().map(|s| s.decimal().to_string());
+    let degree = sat.as_ref().map(|s| s.degree().to_string());
+    let name = sat.as_ref().map(|s| s.name());
+    let block = sat.as_ref().map(|s| s.height().0);
+    let cycle = sat.as_ref().map(|s| s.cycle());
+    let epoch = sat.as_ref().map(|s| s.epoch().0);
+    let period = sat.as_ref().map(|s| s.period());
+    let offset = sat.as_ref().map(|s| s.third());
+    let rarity = sat.as_ref().map(|s| s.rarity());
+    let percentile = sat.as_ref().map(|s| s.percentile());
+
+    let blocktime = if let Some(s) = sat {
+      Some(index.block_time(s.height())?.timestamp().timestamp())
+    } else {
+      None
+    };
+
+    Ok(
+      Json(ExtendedInscriptionJson::new(
+        page_config.chain,
+        children,
+        entry.fee,
+        entry.height,
+        inscription,
+        inscription_id,
+        entry.parent,
+        next,
+        entry.number,
+        output,
+        previous,
+        entry.sat,
+        satpoint,
+        timestamp(entry.timestamp),
+        // New fields from sat function
+        number,
+        decimal,
+        degree,
+        name,
+        block,
+        cycle,
+        epoch,
+        period,
+        offset,
+        rarity,
+        percentile,
+        blocktime,
+      ))
+      .into_response(),
+    )
+  }
+
+  async fn api_inscriptions(
+    Extension(page_config): Extension<Arc<PageConfig>>,
+    Extension(index): Extension<Arc<Index>>,
+    _accept_json: AcceptJson,
+  ) -> ServerResult<Response> {
+    Self::api_inscriptions_inner(page_config, index, None, 100).await
+  }
+
+  // TODO: more data in this json
+  async fn api_inscriptions_in_block(
+    Extension(page_config): Extension<Arc<PageConfig>>,
+    Extension(index): Extension<Arc<Index>>,
+    Path(block_height): Path<u64>,
+    _accept_json: AcceptJson,
+  ) -> ServerResult<Response> {
+    Self::api_inscriptions_in_block_from_page(
+      Extension(page_config),
+      Extension(index),
+      Path((block_height, 0)),
+    )
+    .await
+  }
+
+  async fn api_inscriptions_in_block_from_page(
+    Extension(_page_config): Extension<Arc<PageConfig>>,
+    Extension(index): Extension<Arc<Index>>,
+    Path((block_height, _page_index)): Path<(u64, usize)>,
+  ) -> ServerResult<Response> {
+    let inscriptions = index.get_inscriptions_in_block(block_height)?;
+
+    Ok(Json(InscriptionsJson::new(inscriptions, None, None, None, None)).into_response())
+  }
+
+  async fn api_inscriptions_from(
+    Extension(page_config): Extension<Arc<PageConfig>>,
+    Extension(index): Extension<Arc<Index>>,
+    Path(from): Path<i64>,
+    _accept_json: AcceptJson,
+  ) -> ServerResult<Response> {
+    Self::api_inscriptions_inner(page_config, index, Some(from), 100).await
+  }
+
+  async fn api_inscriptions_from_n(
+    Extension(page_config): Extension<Arc<PageConfig>>,
+    Extension(index): Extension<Arc<Index>>,
+    Path((from, n)): Path<(i64, usize)>,
+    _accept_json: AcceptJson,
+  ) -> ServerResult<Response> {
+    Self::api_inscriptions_inner(page_config, index, Some(from), n).await
+  }
+
+  async fn api_inscriptions_inner(
+    _page_config: Arc<PageConfig>,
+    index: Arc<Index>,
+    from: Option<i64>,
+    n: usize,
+  ) -> ServerResult<Response> {
+    let (inscriptions, prev, next, lowest, highest) =
+      index.get_latest_inscriptions_with_prev_and_next(n, from)?;
+    Ok(
+      Json(InscriptionsJson::new(
+        inscriptions,
+        prev,
+        next,
+        Some(lowest),
+        Some(highest),
+      ))
+      .into_response(),
+    )
+  }
+
+  async fn api_output(
+    Extension(page_config): Extension<Arc<PageConfig>>,
+    Extension(index): Extension<Arc<Index>>,
+    Path(outpoint): Path<OutPoint>,
+    _accept_json: AcceptJson,
+  ) -> ServerResult<Response> {
+    let list = if index.has_sat_index()? {
+      index.list(outpoint)?
+    } else {
+      None
+    };
+
+    let output = if outpoint == OutPoint::null() || outpoint == unbound_outpoint() {
+      let mut value = 0;
+
+      if let Some(List::Unspent(ranges)) = &list {
+        for (start, end) in ranges {
+          value += end - start;
+        }
+      }
+
+      TxOut {
+        value,
+        script_pubkey: ScriptBuf::new(),
+      }
+    } else {
+      index
+        .get_transaction(outpoint.txid)?
+        .ok_or_not_found(|| format!("output {outpoint}"))?
+        .output
+        .into_iter()
+        .nth(outpoint.vout as usize)
+        .ok_or_not_found(|| format!("output {outpoint}"))?
+    };
+
+    let inscriptions = index.get_inscriptions_on_output(outpoint)?;
+
+    Ok(
+      Json(OutputJson::new(
+        outpoint,
+        list,
+        page_config.chain,
+        output,
+        inscriptions,
+      ))
+      .into_response(),
+    )
+  }
+
+  // TODO:  more data in this json
+  async fn api_feed(
+    Extension(_page_config): Extension<Arc<PageConfig>>,
+    Extension(index): Extension<Arc<Index>>,
+    _accept_json: AcceptJson,
+  ) -> ServerResult<Response> {
+    let inscriptions = index.get_feed_inscriptions(100)?;
+
+    let inscriptions_links: Vec<FeedItem> = inscriptions
+      .iter()
+      .map(|(number, id)| FeedItem {
+        href: format!("/inscription/{}", id),
+        title: format!("Inscription {}", number),
+      })
+      .collect();
+
+    Ok(
+      Json(serde_json::json!({
+          "total": inscriptions.first().unwrap().0,
+          "count": inscriptions.len(),
+          "_links": {
+              "self": {
+                  "href": "/feed",
+              },
+              "inscriptions": inscriptions_links,
+          }
+      }))
+      .into_response(),
+    )
+  }
+
+  // API CODE ENDS
+  // API CODE ENDS
 
   fn acme_cache(acme_cache: Option<&PathBuf>, options: &Options) -> Result<PathBuf> {
     let acme_cache = if let Some(acme_cache) = acme_cache {
@@ -711,7 +1045,7 @@ impl Server {
 
     let chain = page_config.chain;
     match chain {
-      Chain::Mainnet => builder.title("Inscriptions"),
+      Chain::Mainnet => builder.title("Inscriptions".to_owned()),
       _ => builder.title(format!("Inscriptions – {chain:?}")),
     };
 

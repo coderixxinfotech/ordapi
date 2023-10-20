@@ -77,6 +77,111 @@ impl InscriptionJson {
   }
 }
 
+#[derive(Debug, PartialEq, Serialize, Deserialize)]
+pub struct ExtendedInscriptionJson {
+  // Fields from InscriptionJson
+  pub address: Option<String>,
+  pub children: Vec<InscriptionId>,
+  pub content_length: Option<usize>,
+  pub content_type: Option<String>,
+  pub genesis_fee: u64,
+  pub genesis_height: u64,
+  pub inscription_id: InscriptionId,
+  pub next: Option<InscriptionId>,
+  pub inscription_number: i64,
+  pub output_value: Option<u64>,
+  pub parent: Option<InscriptionId>,
+  pub previous: Option<InscriptionId>,
+  pub sat: Option<Sat>,
+  pub satpoint: SatPoint,
+  pub timestamp: i64,
+
+  // Fields from SatJson
+  pub sat_number: Option<u64>,
+  pub decimal: Option<String>,
+  pub degree: Option<String>,
+  pub sat_name: Option<String>,
+  pub block: Option<u64>,
+  pub cycle: Option<u64>,
+  pub epoch: Option<u64>,
+  pub period: Option<u64>,
+  pub offset: Option<u64>,
+  pub rarity: Option<Rarity>,
+  pub percentile: Option<String>,
+  pub sat_timestamp: Option<i64>,
+  // pub inscriptions: Option<Vec<InscriptionId>>,
+}
+
+impl ExtendedInscriptionJson {
+  pub fn new(
+    // Existing parameters from InscriptionJson
+    chain: Chain,
+    children: Vec<InscriptionId>,
+    genesis_fee: u64,
+    genesis_height: u64,
+    inscription: Inscription,
+    inscription_id: InscriptionId,
+    parent: Option<InscriptionId>,
+    next: Option<InscriptionId>,
+    inscription_number: i64,
+    output: Option<TxOut>,
+    previous: Option<InscriptionId>,
+    sat: Option<Sat>,
+    satpoint: SatPoint,
+    timestamp: DateTime<Utc>,
+    // New parameters for sat-related data
+    sat_number: Option<u64>,
+    decimal: Option<String>,
+    degree: Option<String>,
+    sat_name: Option<String>,
+    block: Option<u64>,
+    cycle: Option<u64>,
+    epoch: Option<u64>,
+    period: Option<u64>,
+    offset: Option<u64>,
+    rarity: Option<Rarity>,
+    percentile: Option<String>,
+    sat_timestamp: Option<i64>,
+    // inscriptions: Option<Vec<InscriptionId>>,
+  ) -> Self {
+    Self {
+      // Fields from InscriptionJson
+      inscription_id,
+      children,
+      inscription_number,
+      genesis_height,
+      parent,
+      genesis_fee,
+      output_value: output.as_ref().map(|o| o.value),
+      address: output
+        .as_ref()
+        .and_then(|o| chain.address_from_script(&o.script_pubkey).ok())
+        .map(|address| address.to_string()),
+      sat,
+      satpoint,
+      content_type: inscription.content_type().map(|s| s.to_string()),
+      content_length: inscription.content_length(),
+      timestamp: timestamp.timestamp(),
+      previous,
+      next,
+      // Fields for SatJson
+      sat_number,
+      decimal,
+      degree,
+      sat_name,
+      block,
+      cycle,
+      epoch,
+      period,
+      offset,
+      rarity,
+      percentile,
+      sat_timestamp,
+      // inscriptions,
+    }
+  }
+}
+
 impl PageContent for InscriptionHtml {
   fn title(&self) -> String {
     format!("Inscription {}", self.number)
