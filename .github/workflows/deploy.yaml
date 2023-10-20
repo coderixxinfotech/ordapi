@@ -1,4 +1,4 @@
-name: ORD DEPLOY CI
+name: ORDAPI DEPLOY CI
 
 on:
   push:
