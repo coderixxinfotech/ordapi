@@ -38,5 +38,9 @@ jobs:
       - name: Log in to Docker registry
         run: docker login -u crypticmetadev -p ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Push ordapi image to Docker registry
-        run: docker push ${{ env.IMAGE_NAME }}
+      - name: Push image to Docker registry
+        run: |
+          BRANCH_NAME=${GITHUB_REF##*/}
+          docker push ${BASE_IMAGE_NAME}:${BRANCH_NAME}
+        env:
+          BASE_IMAGE_NAME: crypticmetadev/ordapi
