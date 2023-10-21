@@ -3,11 +3,11 @@ echo "CONTAINER RESTARTED"
 
 # Check if "lastUsed.txt" file exists and read its content
 lastUsed=""
-if [ -f /root/lastUsed.txt ]; then
-    lastUsed=$(cat /root/lastUsed.txt)
+if [ -f /root/.local/share/ord/lastUsed.txt ]; then
+    lastUsed=$(cat /root/.local/share/ord/lastUsed.txt)
 else
     echo "lastUsed.txt file not found. Setting lastUsed to server2 and copying index.redb to server directory."
-    echo "server2" > /root/lastUsed.txt
+    echo "server2" > /root/.local/share/ord/lastUsed.txt
     if [ -f /root/.local/share/ord/index.redb ]; then
         pv /root/.local/share/ord/index.redb > /root/.local/share/ord/server/index.redb 2>&1
         echo "Successfully copied index.redb to server directory."
@@ -49,7 +49,7 @@ done
 
 # Update "lastUsed.txt" with the directory the server is running from
 echo "Updating lastUsed.txt with $runDir..."
-echo $runDir > /root/lastUsed.txt
+echo $runDir > /root/.local/share/ord/lastUsed.txt
 
 # Sleep for a few seconds to allow the server to start up
 sleep 5
