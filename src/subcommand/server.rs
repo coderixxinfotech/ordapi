@@ -176,9 +176,7 @@ impl Server {
         .route("/blockhash", get(Self::block_hash))
         .route("/blockhash/:height", get(Self::block_hash_from_height))
         .route("/blocktime", get(Self::block_time))
-        // .route("/content/:inscription_id", get(Self::content))
         .route("/feed", get(Self::api_feed))
-        // .route("/input/:block/:transaction/:input", get(Self::input))
         .route(
           "/inscription/:inscription_query",
           get(Self::api_inscription),
@@ -194,17 +192,11 @@ impl Server {
         )
         .route("/inscriptions/:from", get(Self::api_inscriptions_from))
         .route("/inscriptions/:from/:n", get(Self::api_inscriptions_from_n))
-        // .route("/ordinal/:sat", get(Self::ordinal))
         .route("/output/:output", get(Self::api_output))
-        // .route("/preview/:inscription_id", get(Self::preview))
         .route("/range/:start/:end", get(Self::range))
-        // .route("/rare.txt", get(Self::rare_txt))
-        // .route("/rune/:rune", get(Self::rune))
-        // .route("/runes", get(Self::runes))
         .route("/sat/:sat", get(Self::api_sat))
         .route("/search", get(Self::search_by_query))
         .route("/search/*query", get(Self::search_by_path))
-        // .route("/status", get(Self::status))
         .route("/tx/:txid", get(Self::transaction));
 
       let router = Router::new()
@@ -420,7 +412,7 @@ impl Server {
       .get_inscription_satpoint_by_id(inscription_id)?
       .ok_or_not_found(|| format!("inscription {inscription_id}"))?;
 
-    let output = if satpoint.outpoint == unbound_outpoint() {
+    let output_value = if satpoint.outpoint == unbound_outpoint() {
       None
     } else {
       Some(
@@ -443,7 +435,6 @@ impl Server {
     let sat = entry.sat;
 
     // Mapping methods over Option<Sat> to extract properties
-    let number = sat.map(|s| s.0);
     let decimal = sat.as_ref().map(|s| s.decimal().to_string());
     let degree = sat.as_ref().map(|s| s.degree().to_string());
     let name = sat.as_ref().map(|s| s.name());
@@ -461,24 +452,30 @@ impl Server {
       None
     };
 
+    // let is_unbound = satpoint.outpoint == unbound_outpoint();
+    let location = satpoint;
+    let output = satpoint.outpoint;
+
     Ok(
       Json(ExtendedInscriptionJson::new(
         page_config.chain,
         children,
         entry.fee,
         entry.height,
+        inscription_id.txid,
         inscription,
         inscription_id,
         entry.parent,
         next,
         entry.number,
-        output,
+        output_value,
         previous,
         entry.sat,
-        satpoint,
+        output,
+        location,
         timestamp(entry.timestamp),
+        satpoint.offset,
         // New fields from sat function
-        number,
         decimal,
         degree,
         name,
