@@ -1,5 +1,7 @@
 use super::*;
 
+use serde_json::Value;
+
 #[derive(Boilerplate)]
 pub(crate) struct OutputHtml {
   pub(crate) outpoint: OutPoint,
@@ -17,6 +19,8 @@ pub struct OutputJson {
   pub transaction: String,
   pub sat_ranges: Option<Vec<(u64, u64)>>,
   pub inscriptions: Vec<InscriptionId>,
+  //added
+  pub inscription_details: Vec<Value>,
 }
 
 impl OutputJson {
@@ -26,6 +30,8 @@ impl OutputJson {
     chain: Chain,
     output: TxOut,
     inscriptions: Vec<InscriptionId>,
+    //added
+    inscription_details: Vec<Value>,
   ) -> Self {
     Self {
       value: output.value,
@@ -40,6 +46,7 @@ impl OutputJson {
         _ => None,
       },
       inscriptions,
+      inscription_details,
     }
   }
 }

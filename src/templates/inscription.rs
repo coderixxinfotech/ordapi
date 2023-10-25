@@ -37,6 +37,33 @@ pub struct InscriptionJson {
   pub timestamp: i64,
 }
 
+#[derive(Debug, PartialEq, Serialize, Deserialize)]
+pub(crate) struct TransactionJson {
+  pub blockhash: Option<String>,
+  pub chain: String,
+  pub inscription: Option<String>,
+  // transaction: String,
+  pub txid: String,
+}
+
+impl TransactionJson {
+  pub fn new(
+    blockhash: Option<BlockHash>,
+    chain: Chain,
+    inscription: Option<InscriptionId>,
+    // transaction: Transaction,
+    txid: Txid,
+  ) -> Self {
+    Self {
+      blockhash: blockhash.map(|bh| bh.to_string()),
+      chain: chain.to_string(),
+      inscription: inscription.map(|ins| ins.to_string()),
+      // transaction: transaction.to_string(),
+      txid: txid.to_string(),
+    }
+  }
+}
+
 impl InscriptionJson {
   pub fn new(
     chain: Chain,
