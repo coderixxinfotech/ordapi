@@ -21,6 +21,48 @@ pub(crate) struct InscriptionHtml {
 }
 
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
+pub struct ExtendedInscriptionJson {
+  pub address: Option<String>,
+  pub children: Vec<InscriptionId>,
+  pub content_length: Option<usize>,
+  pub content_type: Option<String>,
+  pub genesis_fee: u64,
+  pub genesis_height: u32,
+  pub inscription_id: InscriptionId,
+  pub inscription_number: i32,
+  pub next: Option<InscriptionId>,
+  pub output_value: Option<u64>,
+  pub parent: Option<InscriptionId>,
+  pub previous: Option<InscriptionId>,
+  pub rune: Option<Rune>,
+  pub sat: Option<Sat>,
+  pub satpoint: SatPoint,
+  pub timestamp: i64,
+  pub metaprotocol: Option<String>,
+  pub metadata: Option<Value>,
+  pub(crate) charms: u16,
+
+  // added
+  pub genesis_transaction: Txid,
+  pub output: OutPoint,
+  pub location: SatPoint,
+  pub offset: u64,
+
+  // Fields from SatJson
+  pub decimal: Option<String>,
+  pub degree: Option<String>,
+  pub sat_name: Option<String>,
+  pub block: Option<u32>,
+  pub cycle: Option<u32>,
+  pub epoch: Option<u32>,
+  pub period: Option<u32>,
+  pub sat_offset: Option<u64>,
+  pub rarity: Option<Rarity>,
+  pub percentile: Option<String>,
+  pub sat_timestamp: Option<i64>,
+}
+
+#[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub struct InscriptionJson {
   pub address: Option<String>,
   pub children: Vec<InscriptionId>,
@@ -38,6 +80,33 @@ pub struct InscriptionJson {
   pub sat: Option<Sat>,
   pub satpoint: SatPoint,
   pub timestamp: i64,
+}
+
+#[derive(Debug, PartialEq, Serialize, Deserialize)]
+pub(crate) struct TransactionJson {
+  pub blockhash: Option<String>,
+  pub chain: String,
+  pub inscription: Option<String>,
+  // transaction: String,
+  pub txid: String,
+}
+
+impl TransactionJson {
+  pub fn new(
+    blockhash: Option<BlockHash>,
+    chain: Chain,
+    inscription: Option<InscriptionId>,
+    // transaction: Transaction,
+    txid: Txid,
+  ) -> Self {
+    Self {
+      blockhash: blockhash.map(|bh| bh.to_string()),
+      chain: chain.to_string(),
+      inscription: inscription.map(|ins| ins.to_string()),
+      // transaction: transaction.to_string(),
+      txid: txid.to_string(),
+    }
+  }
 }
 
 impl PageContent for InscriptionHtml {

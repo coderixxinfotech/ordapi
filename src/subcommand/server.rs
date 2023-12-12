@@ -45,6 +45,7 @@ use {
   },
 };
 
+use crate::templates::inscription::{ExtendedInscriptionJson, TransactionJson};
 mod accept_encoding;
 mod accept_json;
 mod error;
@@ -163,6 +164,12 @@ pub(crate) struct Server {
   pub(crate) enable_json_api: bool,
 }
 
+#[derive(Serialize)]
+struct FeedItem {
+  href: String,
+  title: String,
+}
+
 impl Server {
   pub(crate) fn run(self, options: Options, index: Arc<Index>, handle: Handle) -> SubcommandResult {
     Runtime::new()?.block_on(async {
@@ -193,8 +200,40 @@ impl Server {
         index_sats: index.has_sat_index(),
       });
 
+      let api_routes = Router::new()
+        .route("/", get(Self::home))
+        .route("/block/:query", get(Self::block))
+        .route("/blockcount", get(Self::block_count))
+        .route("/blockheight", get(Self::block_height))
+        .route("/blockhash", get(Self::block_hash))
+        .route("/blockhash/:height", get(Self::block_hash_from_height))
+        .route("/blocktime", get(Self::block_time))
+        .route("/feed", get(Self::api_feed))
+        .route(
+          "/inscription/:inscription_query",
+          get(Self::api_inscription),
+        )
+        .route("/inscriptions", get(Self::api_inscriptions))
+        .route(
+          "/inscriptions/block/:height",
+          get(Self::api_inscriptions_in_block),
+        )
+        // .route(
+        //   "/inscriptions/block/:height/:page_index",
+        //   get(Self::api_inscriptions_in_block_from_page),
+        // )
+        .route("/inscriptions/:from", get(Self::api_inscriptions_paginated))
+        // .route("/inscriptions/:from/:n", get(Self::api_inscriptions_from_n))
+        .route("/output/:output", get(Self::api_output))
+        .route("/range/:start/:end", get(Self::range))
+        // .route("/sat/:sat", get(Self::api_sat))
+        .route("/search", get(Self::search_by_query))
+        .route("/search/*query", get(Self::search_by_path))
+      .route("/tx/:txid", get(Self::api_transaction));
+
       let router = Router::new()
         .route("/", get(Self::home))
+        .nest("/api", api_routes)
         .route("/block/:query", get(Self::block))
         .route("/blockcount", get(Self::block_count))
         .route("/blockhash", get(Self::block_hash))
@@ -466,6 +505,329 @@ impl Server {
     )
   }
 
+  // API CODE STARTS
+
+  // API INSCRIPTION
+
+  async fn api_inscription(
+    Extension(page_config): Extension<Arc<PageConfig>>,
+    Extension(index): Extension<Arc<Index>>,
+    Path(DeserializeFromStr(query)): Path<DeserializeFromStr<InscriptionQuery>>,
+    accept_json: AcceptJson,
+  ) -> ServerResult<Response> {
+    let inscription_id = match query {
+      InscriptionQuery::Id(id) => id,
+      InscriptionQuery::Number(inscription_number) => index
+        .get_inscription_id_by_inscription_number(inscription_number)?
+        .ok_or_not_found(|| format!("{inscription_number}"))?,
+    };
+
+    let entry = index
+      .get_inscription_entry(inscription_id)?
+      .ok_or_not_found(|| format!("inscription {inscription_id}"))?;
+
+    let inscription = index
+      .get_inscription_by_id(inscription_id)?
+      .ok_or_not_found(|| format!("inscription {inscription_id}"))?;
+
+    let satpoint = index
+      .get_inscription_satpoint_by_id(inscription_id)?
+      .ok_or_not_found(|| format!("inscription {inscription_id}"))?;
+
+    let output = if satpoint.outpoint == unbound_outpoint() || satpoint.outpoint == OutPoint::null()
+    {
+      None
+    } else {
+      Some(
+        index
+          .get_transaction(satpoint.outpoint.txid)?
+          .ok_or_not_found(|| format!("inscription {inscription_id} current transaction"))?
+          .output
+          .into_iter()
+          .nth(satpoint.outpoint.vout.try_into().unwrap())
+          .ok_or_not_found(|| format!("inscription {inscription_id} current transaction output"))?,
+      )
+    };
+
+    let previous = if let Some(n) = entry.sequence_number.checked_sub(1) {
+      index.get_inscription_id_by_sequence_number(n)?
+    } else {
+      None
+    };
+
+    let next = index.get_inscription_id_by_sequence_number(entry.sequence_number + 1)?;
+
+    let (children, _more_children) =
+      index.get_children_by_sequence_number_paginated(entry.sequence_number, 4, 0)?;
+
+    let rune = index.get_rune_by_sequence_number(entry.sequence_number)?;
+
+    let parent = match entry.parent {
+      Some(parent) => index.get_inscription_id_by_sequence_number(parent)?,
+      None => None,
+    };
+
+    let mut charms = entry.charms;
+
+    if satpoint.outpoint == OutPoint::null() {
+      Charm::Lost.set(&mut charms);
+    }
+
+    let sat = entry.sat;
+    // Mapping methods over Option<Sat> to extract properties
+    let decimal = sat.as_ref().map(|s| s.decimal().to_string());
+    let degree = sat.as_ref().map(|s| s.degree().to_string());
+    let name = sat.as_ref().map(|s| s.name());
+    let block = sat.as_ref().map(|s| s.height().0);
+    let cycle = sat.as_ref().map(|s| s.cycle());
+    let epoch = sat.as_ref().map(|s| s.epoch().0);
+    let period = sat.as_ref().map(|s| s.period());
+    let offset = sat.as_ref().map(|s| s.third());
+    let rarity = sat.as_ref().map(|s| s.rarity());
+    let percentile = sat.as_ref().map(|s| s.percentile());
+
+    let blocktime = if let Some(s) = sat {
+      Some(index.block_time(s.height())?.timestamp().timestamp())
+    } else {
+      None
+    };
+
+    // let is_unbound = satpoint.outpoint == unbound_outpoint();
+    let location = satpoint;
+    // When constructing your InscriptionJson
+    let metaprotocol_string = inscription.metaprotocol.as_ref().map(|bytes| {
+      String::from_utf8(bytes.clone()).unwrap_or_else(|_| String::from("Invalid UTF-8"))
+    });
+
+    let metadata = inscription.metadata();
+
+    Ok(
+      Json(ExtendedInscriptionJson {
+        inscription_id,
+        children,
+        inscription_number: entry.inscription_number,
+        genesis_height: entry.height,
+        parent,
+        genesis_fee: entry.fee,
+        output_value: output.as_ref().map(|o| o.value),
+        address: output
+          .as_ref()
+          .and_then(|o| page_config.chain.address_from_script(&o.script_pubkey).ok())
+          .map(|address| address.to_string()),
+        sat: entry.sat,
+        satpoint,
+        content_type: inscription.content_type().map(|s| s.to_string()),
+        content_length: inscription.content_length(),
+        timestamp: timestamp(entry.timestamp).timestamp(),
+        previous,
+        next,
+        rune,
+        metaprotocol: metaprotocol_string,
+        metadata,
+        charms,
+        genesis_transaction: inscription_id.txid,
+        output: satpoint.outpoint,
+        location,
+        offset: satpoint.offset,
+        decimal,
+        degree,
+        sat_name: name,
+        block,
+        cycle,
+        epoch,
+        period,
+        sat_offset: offset,
+        rarity,
+        percentile,
+        sat_timestamp: blocktime,
+      })
+      .into_response(),
+    )
+  }
+
+  async fn api_inscriptions(
+    Extension(page_config): Extension<Arc<PageConfig>>,
+    Extension(index): Extension<Arc<Index>>,
+    _accept_json: AcceptJson,
+  ) -> ServerResult<Response> {
+    Self::api_inscriptions_paginated(Extension(page_config), Extension(index), Path(0)).await
+  }
+
+  async fn api_inscriptions_paginated(
+    Extension(page_config): Extension<Arc<PageConfig>>,
+    Extension(index): Extension<Arc<Index>>,
+    Path(page_index): Path<usize>,
+  ) -> ServerResult<Response> {
+    let (inscriptions, more_inscriptions) = index.get_inscriptions_paginated(100, page_index)?;
+
+    let prev = page_index.checked_sub(1);
+
+    let next = more_inscriptions.then_some(page_index + 1);
+
+    Ok(
+      Json(InscriptionsJson {
+        inscriptions,
+        page_index,
+        more: more_inscriptions,
+      })
+      .into_response(),
+    )
+  }
+
+  async fn api_inscriptions_in_block(
+    Extension(page_config): Extension<Arc<PageConfig>>,
+    Extension(index): Extension<Arc<Index>>,
+    Path(block_height): Path<u32>,
+    _accept_json: AcceptJson,
+  ) -> ServerResult<Response> {
+    Self::api_inscriptions_in_block_paginated(
+      Extension(page_config),
+      Extension(index),
+      Path((block_height, 0)),
+    )
+    .await
+  }
+
+  async fn api_inscriptions_in_block_paginated(
+    Extension(page_config): Extension<Arc<PageConfig>>,
+    Extension(index): Extension<Arc<Index>>,
+    Path((block_height, page_index)): Path<(u32, usize)>,
+  ) -> ServerResult<Response> {
+    let page_size = 100;
+
+    let mut inscriptions = index
+      .get_inscriptions_in_block(block_height)?
+      .into_iter()
+      .skip(page_index.saturating_mul(page_size))
+      .take(page_size.saturating_add(1))
+      .collect::<Vec<InscriptionId>>();
+
+    let more = inscriptions.len() > page_size;
+
+    if more {
+      inscriptions.pop();
+    }
+
+    Ok(
+      Json(InscriptionsJson {
+        inscriptions,
+        page_index,
+        more,
+      })
+      .into_response(),
+    )
+  }
+
+  async fn api_sat_inscriptions(
+    Extension(index): Extension<Arc<Index>>,
+    Path(sat): Path<u64>,
+  ) -> ServerResult<Json<SatInscriptionsJson>> {
+    Self::sat_inscriptions_paginated(Extension(index), Path((sat, 0))).await
+  }
+
+  // API TRANSACTION
+  async fn api_transaction(
+    Extension(page_config): Extension<Arc<PageConfig>>,
+    Extension(index): Extension<Arc<Index>>,
+    Path(txid): Path<Txid>,
+  ) -> ServerResult<Json<TransactionJson>> {
+    let inscription = index.get_inscription_by_id(InscriptionId { txid, index: 0 })?;
+
+    let blockhash = index.get_transaction_blockhash(txid)?;
+
+    Ok(Json(TransactionJson::new(
+      blockhash,
+      page_config.chain,
+      inscription.map(|_| InscriptionId { txid, index: 0 }),
+      // transaction,
+      txid,
+    )))
+  }
+
+  // API OUTPUT
+  async fn api_output(
+    Extension(page_config): Extension<Arc<PageConfig>>,
+    Extension(index): Extension<Arc<Index>>,
+    Path(outpoint): Path<OutPoint>,
+    _accept_json: AcceptJson,
+  ) -> ServerResult<Response> {
+    let list = index.list(outpoint)?;
+
+    let output = if outpoint == OutPoint::null() || outpoint == unbound_outpoint() {
+      let mut value = 0;
+
+      if let Some(List::Unspent(ranges)) = &list {
+        for (start, end) in ranges {
+          value += end - start;
+        }
+      }
+
+      TxOut {
+        value,
+        script_pubkey: ScriptBuf::new(),
+      }
+    } else {
+      index
+        .get_transaction(outpoint.txid)?
+        .ok_or_not_found(|| format!("output {outpoint}"))?
+        .output
+        .into_iter()
+        .nth(outpoint.vout as usize)
+        .ok_or_not_found(|| format!("output {outpoint}"))?
+    };
+
+    let inscriptions = index.get_inscriptions_on_output(outpoint)?;
+
+    let runes = index.get_rune_balances_for_outpoint(outpoint)?;
+
+    Ok(
+      Json(OutputJson::new(
+        outpoint,
+        list,
+        page_config.chain,
+        output,
+        inscriptions,
+        runes
+          .into_iter()
+          .map(|(rune, pile)| (rune, pile.amount))
+          .collect(),
+      ))
+      .into_response(),
+    )
+  }
+
+  // API FEED
+  async fn api_feed(
+    Extension(_page_config): Extension<Arc<PageConfig>>,
+    Extension(index): Extension<Arc<Index>>,
+    _accept_json: AcceptJson,
+  ) -> ServerResult<Response> {
+    let inscriptions = index.get_feed_inscriptions(100)?;
+
+    let inscriptions_links: Vec<FeedItem> = inscriptions
+      .iter()
+      .map(|(number, id)| FeedItem {
+        href: format!("/inscription/{}", id),
+        title: format!("Inscription {}", number),
+      })
+      .collect();
+
+    Ok(
+      Json(serde_json::json!({
+          "total": inscriptions.first().unwrap().0,
+          "count": inscriptions.len(),
+          "_links": {
+              "self": {
+                  "href": "/feed",
+              },
+              "inscriptions": inscriptions_links,
+          }
+      }))
+      .into_response(),
+    )
+  }
+
+  // API CODE ENDS
   async fn sat(
     Extension(page_config): Extension<Arc<PageConfig>>,
     Extension(index): Extension<Arc<Index>>,
