@@ -218,18 +218,17 @@ impl Server {
           "/inscriptions/block/:height",
           get(Self::api_inscriptions_in_block),
         )
-        // .route(
-        //   "/inscriptions/block/:height/:page_index",
-        //   get(Self::api_inscriptions_in_block_from_page),
-        // )
+        .route(
+          "/inscriptions/block/:height/:page",
+          get(Self::api_inscriptions_in_block_paginated),
+        )
         .route("/inscriptions/:from", get(Self::api_inscriptions_paginated))
-        // .route("/inscriptions/:from/:n", get(Self::api_inscriptions_from_n))
         .route("/output/:output", get(Self::api_output))
         .route("/range/:start/:end", get(Self::range))
-        // .route("/sat/:sat", get(Self::api_sat))
+        .route("/sat/:sat", get(Self::api_sat))
         .route("/search", get(Self::search_by_query))
         .route("/search/*query", get(Self::search_by_path))
-      .route("/tx/:txid", get(Self::api_transaction));
+        .route("/tx/:txid", get(Self::api_transaction));
 
       let router = Router::new()
         .route("/", get(Self::home))
@@ -513,7 +512,7 @@ impl Server {
     Extension(page_config): Extension<Arc<PageConfig>>,
     Extension(index): Extension<Arc<Index>>,
     Path(DeserializeFromStr(query)): Path<DeserializeFromStr<InscriptionQuery>>,
-    accept_json: AcceptJson,
+    _accept_json: AcceptJson,
   ) -> ServerResult<Response> {
     let inscription_id = match query {
       InscriptionQuery::Id(id) => id,
@@ -654,15 +653,15 @@ impl Server {
   }
 
   async fn api_inscriptions_paginated(
-    Extension(page_config): Extension<Arc<PageConfig>>,
+    Extension(_page_config): Extension<Arc<PageConfig>>,
     Extension(index): Extension<Arc<Index>>,
     Path(page_index): Path<usize>,
   ) -> ServerResult<Response> {
     let (inscriptions, more_inscriptions) = index.get_inscriptions_paginated(100, page_index)?;
 
-    let prev = page_index.checked_sub(1);
+    let _prev = page_index.checked_sub(1);
 
-    let next = more_inscriptions.then_some(page_index + 1);
+    let _next = more_inscriptions.then_some(page_index + 1);
 
     Ok(
       Json(InscriptionsJson {
@@ -689,7 +688,7 @@ impl Server {
   }
 
   async fn api_inscriptions_in_block_paginated(
-    Extension(page_config): Extension<Arc<PageConfig>>,
+    Extension(_page_config): Extension<Arc<PageConfig>>,
     Extension(index): Extension<Arc<Index>>,
     Path((block_height, page_index)): Path<(u32, usize)>,
   ) -> ServerResult<Response> {
@@ -718,7 +717,7 @@ impl Server {
     )
   }
 
-  async fn api_sat_inscriptions(
+  async fn _api_sat_inscriptions(
     Extension(index): Extension<Arc<Index>>,
     Path(sat): Path<u64>,
   ) -> ServerResult<Json<SatInscriptionsJson>> {
@@ -823,6 +822,43 @@ impl Server {
               "inscriptions": inscriptions_links,
           }
       }))
+      .into_response(),
+    )
+  }
+
+  async fn api_sat(
+    Extension(_page_config): Extension<Arc<PageConfig>>,
+    Extension(index): Extension<Arc<Index>>,
+    Path(DeserializeFromStr(sat)): Path<DeserializeFromStr<Sat>>,
+    _accept_json: AcceptJson,
+  ) -> ServerResult<Response> {
+    let inscriptions = index.get_inscription_ids_by_sat(sat)?;
+    let satpoint = index.rare_sat_satpoint(sat)?.or_else(|| {
+      inscriptions.first().and_then(|&first_inscription_id| {
+        index
+          .get_inscription_satpoint_by_id(first_inscription_id)
+          .ok()
+          .flatten()
+      })
+    });
+    let blocktime = index.block_time(sat.height())?;
+    Ok(
+      Json(SatJson {
+        number: sat.0,
+        decimal: sat.decimal().to_string(),
+        degree: sat.degree().to_string(),
+        name: sat.name(),
+        block: sat.height().0,
+        cycle: sat.cycle(),
+        epoch: sat.epoch().0,
+        period: sat.period(),
+        offset: sat.third(),
+        rarity: sat.rarity(),
+        percentile: sat.percentile(),
+        satpoint,
+        timestamp: blocktime.timestamp().timestamp(),
+        inscriptions,
+      })
       .into_response(),
     )
   }
