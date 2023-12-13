@@ -1453,14 +1453,21 @@ impl Server {
 
   async fn content(
     Extension(index): Extension<Arc<Index>>,
-    Extension(config): Extension<Arc<Config>>,
+    Extension(_config): Extension<Arc<Config>>,
     Extension(page_config): Extension<Arc<PageConfig>>,
-    Path(inscription_id): Path<InscriptionId>,
+    Path(DeserializeFromStr(query)): Path<DeserializeFromStr<InscriptionQuery>>,
     accept_encoding: AcceptEncoding,
   ) -> ServerResult<Response> {
-    if config.is_hidden(inscription_id) {
-      return Ok(PreviewUnknownHtml.into_response());
-    }
+    // if config.is_hidden(inscription_id) {
+    //   return Ok(PreviewUnknownHtml.into_response());
+    // }
+
+    let inscription_id = match query {
+      InscriptionQuery::Id(id) => id,
+      InscriptionQuery::Number(inscription_number) => index
+        .get_inscription_id_by_inscription_number(inscription_number)?
+        .ok_or_not_found(|| format!("{inscription_number}"))?,
+    };
 
     let inscription = index
       .get_inscription_by_id(inscription_id)?
