@@ -45,6 +45,8 @@ use {
   },
 };
 
+use serde_json::json;
+
 use crate::templates::inscription::{ExtendedInscriptionJson, TransactionJson};
 mod accept_encoding;
 mod accept_json;
@@ -750,6 +752,9 @@ impl Server {
     Path(outpoint): Path<OutPoint>,
     _accept_json: AcceptJson,
   ) -> ServerResult<Response> {
+    // Initialize an empty vector to hold the inscription details.
+    let mut inscription_details: Vec<serde_json::Value> = Vec::new();
+
     let list = index.list(outpoint)?;
 
     let output = if outpoint == OutPoint::null() || outpoint == unbound_outpoint() {
@@ -779,6 +784,46 @@ impl Server {
 
     let runes = index.get_rune_balances_for_outpoint(outpoint)?;
 
+    // inscriptions is an array of string (inscription_id)
+
+    // Loop through each inscription_id in inscriptions array
+    for inscription_id in inscriptions.iter() {
+      let _inscription = index
+        .get_inscription_by_id(*inscription_id)?  // Dereference inscription_id
+        .ok_or_not_found(|| format!("inscription {}", inscription_id))?;
+
+      let satpoint = index
+        .get_inscription_satpoint_by_id(*inscription_id)?  // Dereference inscription_id
+        .ok_or_not_found(|| format!("inscription {}", inscription_id))?;
+
+      let output_value = if satpoint.outpoint == unbound_outpoint() {
+        None
+      } else {
+        Some(
+          index
+            .get_transaction(satpoint.outpoint.txid)?
+            .ok_or_not_found(|| format!("inscription {} current transaction", inscription_id))?
+            .output
+            .into_iter()
+            .nth(satpoint.outpoint.vout.try_into().unwrap())
+            .ok_or_not_found(|| {
+              format!("inscription {} current transaction output", inscription_id)
+            })?,
+        )
+      };
+      // Create a JSON object for this inscription
+      let detail = json!({
+        "inscription_id": inscription_id,
+        "location": satpoint,
+        "output": satpoint.outpoint,
+        "offset": satpoint.offset,
+        "output_value": output_value
+      });
+
+      // Push this detail into the details array
+      inscription_details.push(detail);
+    }
+
     Ok(
       Json(OutputJson::new(
         outpoint,
@@ -790,6 +835,7 @@ impl Server {
           .into_iter()
           .map(|(rune, pile)| (rune, pile.amount))
           .collect(),
+        inscription_details,
       ))
       .into_response(),
     )
@@ -920,6 +966,9 @@ impl Server {
     Path(outpoint): Path<OutPoint>,
     accept_json: AcceptJson,
   ) -> ServerResult<Response> {
+    // Initialize an empty vector to hold the inscription details.
+    let inscription_details: Vec<serde_json::Value> = Vec::new();
+
     let list = index.list(outpoint)?;
 
     let output = if outpoint == OutPoint::null() || outpoint == unbound_outpoint() {
@@ -960,6 +1009,7 @@ impl Server {
           .into_iter()
           .map(|(rune, pile)| (rune, pile.amount))
           .collect(),
+        inscription_details,
       ))
       .into_response()
     } else {

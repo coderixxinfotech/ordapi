@@ -19,6 +19,8 @@ pub struct OutputJson {
   pub sat_ranges: Option<Vec<(u64, u64)>>,
   pub inscriptions: Vec<InscriptionId>,
   pub runes: BTreeMap<Rune, u128>,
+  // added
+  pub inscription_details: Vec<serde_json::Value>,
 }
 
 impl OutputJson {
@@ -29,6 +31,8 @@ impl OutputJson {
     output: TxOut,
     inscriptions: Vec<InscriptionId>,
     runes: BTreeMap<Rune, u128>,
+    //added
+    inscription_details: Vec<serde_json::Value>,
   ) -> Self {
     Self {
       value: output.value,
@@ -44,6 +48,7 @@ impl OutputJson {
         _ => None,
       },
       inscriptions,
+      inscription_details,
     }
   }
 }
