@@ -736,11 +736,15 @@ impl Server {
 
     let blockhash = index.get_transaction_blockhash(txid)?;
 
+    let transaction = index
+      .get_transaction(txid)?
+      .ok_or_not_found(|| format!("transaction {txid}"))?;
+
     Ok(Json(TransactionJson::new(
       blockhash,
       page_config.chain,
       inscription.map(|_| InscriptionId { txid, index: 0 }),
-      // transaction,
+      transaction,
       txid,
     )))
   }

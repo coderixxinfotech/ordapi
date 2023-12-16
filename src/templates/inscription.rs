@@ -82,13 +82,44 @@ pub struct InscriptionJson {
   pub timestamp: i64,
 }
 
+
+#[derive(Serialize, Deserialize, Debug)]
+struct InputJson {
+    previous_output: String,
+    address: Option<String>,
+    value: Option<u64>,
+}
+
+
+
+// Tx api_function
+#[derive(Serialize, PartialEq, Deserialize)]
+struct OutputJson {
+  value: u64, // or the appropriate type
+  script_pubkey: String,
+  address: Option<String>,
+}
+
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub(crate) struct TransactionJson {
   pub blockhash: Option<String>,
   pub chain: String,
   pub inscription: Option<String>,
-  // transaction: String,
+  pub transaction: Transaction,
   pub txid: String,
+  outputs: Vec<OutputJson>,
+}
+
+use std::fmt;
+
+impl fmt::Debug for OutputJson {
+  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    write!(
+      f,
+      "OutputJson {{ value: {}, script_pubkey: {}, address: {:?} }}",
+      self.value, self.script_pubkey, self.address
+    )
+  }
 }
 
 impl TransactionJson {
@@ -96,19 +127,37 @@ impl TransactionJson {
     blockhash: Option<BlockHash>,
     chain: Chain,
     inscription: Option<InscriptionId>,
-    // transaction: Transaction,
+    transaction: Transaction, // Assuming Transaction has a field `output`
     txid: Txid,
   ) -> Self {
+    let outputs = transaction
+      .output
+      .iter()
+      .enumerate()
+      .map(|(vout, output)| {
+        let _outpoint = OutPoint::new(txid, vout as u32); // Assuming OutPoint::new exists
+        let address = match chain.address_from_script(&output.script_pubkey) {
+          Ok(address) => Some(address.to_string()), // Assuming this is how you get the address
+          Err(_) => None,
+        };
+        OutputJson {
+          value: output.value, // Adjust according to your actual Output struct
+          script_pubkey: output.script_pubkey.to_asm_string(), // Same here
+          address,
+        }
+      })
+      .collect();
+
     Self {
       blockhash: blockhash.map(|bh| bh.to_string()),
       chain: chain.to_string(),
       inscription: inscription.map(|ins| ins.to_string()),
-      // transaction: transaction.to_string(),
+      transaction,
+      outputs, // Add outputs to the struct
       txid: txid.to_string(),
     }
   }
 }
-
 impl PageContent for InscriptionHtml {
   fn title(&self) -> String {
     format!("Inscription {}", self.inscription_number)
