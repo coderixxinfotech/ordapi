@@ -1,4 +1,22 @@
 use super::*;
+use std::result::Result;
+pub trait OptionExt<T> {
+  fn ok_or_not_found<F, E>(self, err: F) -> Result<T, E>
+  where
+    F: FnOnce() -> E;
+}
+
+impl<T> OptionExt<T> for Option<T> {
+  fn ok_or_not_found<F, E>(self, err: F) -> Result<T, E>
+  where
+    F: FnOnce() -> E,
+  {
+    match self {
+      Some(value) => Ok(value),
+      None => Err(err()),
+    }
+  }
+}
 
 #[derive(Boilerplate, Default)]
 pub(crate) struct InscriptionHtml {
@@ -82,15 +100,12 @@ pub struct InscriptionJson {
   pub timestamp: i64,
 }
 
-
 #[derive(Serialize, Deserialize, Debug)]
 struct InputJson {
-    previous_output: String,
-    address: Option<String>,
-    value: Option<u64>,
+  previous_output: String,
+  address: Option<String>,
+  value: Option<u64>,
 }
-
-
 
 // Tx api_function
 #[derive(Serialize, PartialEq, Deserialize)]
@@ -98,6 +113,13 @@ struct OutputJson {
   value: u64, // or the appropriate type
   script_pubkey: String,
   address: Option<String>,
+}
+
+#[derive(Debug, Serialize, PartialEq, Deserialize)]
+struct InputDetail {
+  output: String,
+  address: Option<String>,
+  value: u64,
 }
 
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
@@ -108,6 +130,7 @@ pub(crate) struct TransactionJson {
   pub transaction: Transaction,
   pub txid: String,
   outputs: Vec<OutputJson>,
+  inputs: Vec<InputDetail>,
 }
 
 use std::fmt;
@@ -124,12 +147,13 @@ impl fmt::Debug for OutputJson {
 
 impl TransactionJson {
   pub fn new(
+    index: Arc<Index>,
     blockhash: Option<BlockHash>,
     chain: Chain,
     inscription: Option<InscriptionId>,
     transaction: Transaction, // Assuming Transaction has a field `output`
     txid: Txid,
-  ) -> Self {
+  ) -> Result<Self, anyhow::Error> {
     let outputs = transaction
       .output
       .iter()
@@ -148,14 +172,56 @@ impl TransactionJson {
       })
       .collect();
 
-    Self {
+    // Process inputs
+    let inputs_result: Result<Vec<Option<InputDetail>>, anyhow::Error> = transaction
+    .input
+    .iter()
+    .map(|input| {
+        let outpoint = input.previous_output;
+
+       let output_result: Result<Option<bitcoin::TxOut>, anyhow::Error> = index.get_transaction(outpoint.txid)
+    .map_err(anyhow::Error::from) // Convert inner Result error to anyhow::Error
+    .and_then(|opt_tx| match opt_tx {
+        Some(tx) => tx.output.into_iter().nth(outpoint.vout as usize)
+            .ok_or_else(|| anyhow::Error::msg(format!("Output not found for outpoint {}", outpoint)))
+            .map(Some), // Wrap the TxOut in Some
+        None => Ok(None), // Correctly return Result<Option<TxOut>, anyhow::Error>
+    });
+
+
+        output_result.map(|output_option| {
+            output_option.map(|output| {
+                let address = chain.address_from_script(&output.script_pubkey)
+                    .ok()
+                    .map(|addr| addr.to_string());
+
+                let previous_value = output.value;
+
+                InputDetail {
+                    output: outpoint.to_string(),
+                    address,
+                    value: previous_value,
+                }
+            })
+        })
+    })
+    .collect(); // Collects into Result<Vec<Option<InputDetail>>, anyhow::Error>
+
+    // Handle the Result from inputs collection
+    let inputs = inputs_result?
+            .into_iter()
+            .filter_map(|input_detail| input_detail) // Filter out None values
+            .collect();
+
+    Ok(Self {
       blockhash: blockhash.map(|bh| bh.to_string()),
       chain: chain.to_string(),
       inscription: inscription.map(|ins| ins.to_string()),
       transaction,
       outputs, // Add outputs to the struct
+      inputs,
       txid: txid.to_string(),
-    }
+    })
   }
 }
 impl PageContent for InscriptionHtml {

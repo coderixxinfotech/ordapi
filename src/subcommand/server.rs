@@ -740,13 +740,16 @@ impl Server {
       .get_transaction(txid)?
       .ok_or_not_found(|| format!("transaction {txid}"))?;
 
-    Ok(Json(TransactionJson::new(
+    let transaction_json = TransactionJson::new(
+      index,
       blockhash,
       page_config.chain,
       inscription.map(|_| InscriptionId { txid, index: 0 }),
       transaction,
       txid,
-    )))
+    )?;
+
+    Ok(Json(transaction_json))
   }
 
   // API OUTPUT
