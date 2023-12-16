@@ -811,13 +811,23 @@ impl Server {
             })?,
         )
       };
+
+      let inscription = index
+        .get_inscription_by_id(*inscription_id)?
+        .ok_or_not_found(|| format!("inscription {inscription_id}"))?;
+
+      let metaprotocol_string = inscription.metaprotocol.as_ref().map(|bytes| {
+        String::from_utf8(bytes.clone()).unwrap_or_else(|_| String::from("Invalid UTF-8"))
+      });
+
       // Create a JSON object for this inscription
       let detail = json!({
         "inscription_id": inscription_id,
         "location": satpoint,
         "output": satpoint.outpoint,
         "offset": satpoint.offset,
-        "output_value": output_value
+        "output_value": output_value,
+        "metaprotocol": metaprotocol_string
       });
 
       // Push this detail into the details array
