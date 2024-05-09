@@ -87,8 +87,12 @@ impl FromStr for InscriptionId {
     if separator != 'i' {
       return Err(ParseError::Separator(separator));
     }
-
-    let vout = &s[TXID_LEN + 1..];
+    // let vout = &s[TXID_LEN + 1..];
+    let remaining = &s[TXID_LEN + 1..];
+    let vout_end_idx = remaining
+      .find(|c: char| !c.is_numeric())
+      .unwrap_or(remaining.len());
+    let vout = &remaining[..vout_end_idx];
 
     Ok(Self {
       txid: txid.parse().map_err(ParseError::Txid)?,
