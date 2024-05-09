@@ -9,6 +9,8 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y \
     curl \
     build-essential \
+    pkg-config \
+    libssl-dev \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy local Rust code to the container
@@ -34,6 +36,8 @@ RUN apt-get update && apt-get install -y \
     curl \
     sudo \
     build-essential \
+    pkg-config \
+    libssl-dev \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy the ord program from the build stage
