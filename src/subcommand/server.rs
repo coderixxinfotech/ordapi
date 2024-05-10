@@ -29,6 +29,7 @@ use {
     caches::DirCache,
     AcmeConfig,
   },
+  serde_json::json,
   std::{cmp::Ordering, str, sync::Arc},
   tokio_stream::StreamExt,
   tower_http::{
@@ -178,8 +179,17 @@ impl Server {
         json_api_enabled: !self.disable_json_api,
       });
 
+      let api_routes = Router::new()
+        // .route(
+        //   "/inscription/:inscription_query",
+        //   get(Self::api_inscription),
+        // )
+        .route("/output/:output", get(Self::api_output));
+      // .route("/tx/:txid", get(Self::api_transaction));
+
       let router = Router::new()
         .route("/", get(Self::home))
+        .nest("/api", api_routes)
         .route("/block/:query", get(Self::block))
         .route("/blockcount", get(Self::block_count))
         .route("/blockhash", get(Self::block_hash))
@@ -1068,6 +1078,111 @@ impl Server {
         .into_response(),
     )
   }
+
+  // API FUNCTIONS
+
+  async fn api_output(
+    Extension(_server_config): Extension<Arc<ServerConfig>>,
+    Extension(index): Extension<Arc<Index>>,
+    Path(outpoint): Path<OutPoint>,
+    AcceptJson(_accept_json): AcceptJson,
+  ) -> ServerResult {
+    task::block_in_place(|| {
+      let (output_info, txout) = index
+        .get_output_info(outpoint)?
+        .ok_or_not_found(|| format!("output {outpoint}"))?;
+
+      let inscriptions = index.get_inscriptions_on_output(outpoint)?;
+
+      // let runes = index.get_rune_balances_for_outpoint(outpoint)?;
+
+      let mut inscription_details: Vec<serde_json::Value> = Vec::new();
+
+      // Loop through each inscription_id in inscriptions array
+      for inscription_id in inscriptions.iter() {
+        let _inscription = index
+        .get_inscription_by_id(*inscription_id)?  // Dereference inscription_id
+        .ok_or_not_found(|| format!("inscription {}", inscription_id))?;
+
+        let satpoint = index
+        .get_inscription_satpoint_by_id(*inscription_id)?  // Dereference inscription_id
+        .ok_or_not_found(|| format!("inscription {}", inscription_id))?;
+
+        let output_value = if satpoint.outpoint == unbound_outpoint() {
+          None
+        } else {
+          Some(
+            index
+              .get_transaction(satpoint.outpoint.txid)?
+              .ok_or_not_found(|| format!("inscription {} current transaction", inscription_id))?
+              .output
+              .into_iter()
+              .nth(satpoint.outpoint.vout.try_into().unwrap())
+              .ok_or_not_found(|| {
+                format!("inscription {} current transaction output", inscription_id)
+              })?,
+          )
+        };
+
+        let inscription = index
+          .get_inscription_by_id(*inscription_id)?
+          .ok_or_not_found(|| format!("inscription {inscription_id}"))?;
+
+        let metaprotocol_string = inscription.metaprotocol.as_ref().map(|bytes| {
+          String::from_utf8(bytes.clone()).unwrap_or_else(|_| String::from("Invalid UTF-8"))
+        });
+
+        // Create a JSON object for this inscription
+        let detail = json!({
+          "inscription_id": inscription_id,
+          "location": satpoint,
+          "output": satpoint.outpoint,
+          "offset": satpoint.offset,
+          "output_value": output_value,
+          "metaprotocol": metaprotocol_string
+        });
+
+        // Push this detail into the details array
+        inscription_details.push(detail);
+      }
+
+      // Combine `output_info` and `inscription_details` into a JSON object
+      let response = json!({
+        "output_info": output_info,
+        "inscription_details": inscription_details,
+      });
+
+      Ok(Json(response).into_response())
+    })
+  }
+
+  // async fn api_transaction(
+  //   Extension(server_config): Extension<Arc<ServerConfig>>,
+  //   Extension(index): Extension<Arc<Index>>,
+  //   Path(txid): Path<Txid>,
+  //   AcceptJson(_accept_json): AcceptJson,
+  // ) -> ServerResult {
+  //   task::block_in_place(|| {
+  //     let transaction = index
+  //       .get_transaction(txid)?
+  //       .ok_or_not_found(|| format!("transaction {txid}"))?;
+
+  //     let inscription_count = index.inscription_count(txid)?;
+
+  //     Ok(
+  //       Json(api::Transaction {
+  //         chain: server_config.chain,
+  //         etching: index.get_etching(txid)?,
+  //         inscription_count,
+  //         transaction,
+  //         txid,
+  //       })
+  //       .into_response(),
+  //     )
+  //   })
+  // }
+
+  // API FUNCTIONS
 
   async fn feed(
     Extension(server_config): Extension<Arc<ServerConfig>>,
