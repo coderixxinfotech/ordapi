@@ -180,10 +180,10 @@ impl Server {
       });
 
       let api_routes = Router::new()
-        // .route(
-        //   "/inscription/:inscription_query",
-        //   get(Self::api_inscription),
-        // )
+        .route(
+          "/inscription/:inscription_query",
+          get(Self::api_inscription),
+        )
         .route("/output/:output", get(Self::api_output));
       // .route("/tx/:txid", get(Self::api_transaction));
 
@@ -1081,6 +1081,96 @@ impl Server {
 
   // API FUNCTIONS
 
+  async fn api_inscription(
+    Extension(_server_config): Extension<Arc<ServerConfig>>,
+    Extension(index): Extension<Arc<Index>>,
+    Path(DeserializeFromStr(query)): Path<DeserializeFromStr<query::Inscription>>,
+    AcceptJson(_accept_json): AcceptJson,
+  ) -> ServerResult {
+    task::block_in_place(|| {
+      if let query::Inscription::Sat(_) = query {
+        if !index.has_sat_index() {
+          return Err(ServerError::NotFound("sat index required".into()));
+        }
+      }
+
+      let (info, _txout, inscription, entry) = index
+        .inscription_info(query)?
+        .ok_or_not_found(|| format!("inscription {query}"))?;
+
+      let satpoint = index
+        .get_inscription_satpoint_by_id(info.id)?
+        .ok_or_not_found(|| format!("inscription {query}"))?;
+
+      let metaprotocol_string = inscription.metaprotocol.as_ref().map(|bytes| {
+        String::from_utf8(bytes.clone()).unwrap_or_else(|_| String::from("Invalid UTF-8"))
+      });
+
+      let metadata = inscription.metadata();
+
+      let sat = entry.sat;
+      // Mapping methods over Option<Sat> to extract properties
+      let decimal = sat.as_ref().map(|s| s.decimal().to_string());
+      let degree = sat.as_ref().map(|s| s.degree().to_string());
+      let name = sat.as_ref().map(|s| s.name());
+      let block = sat.as_ref().map(|s| s.height().0);
+      let cycle = sat.as_ref().map(|s| s.cycle());
+      let epoch = sat.as_ref().map(|s| s.epoch().0);
+      let period = sat.as_ref().map(|s| s.period());
+      let offset = sat.as_ref().map(|s| s.third());
+      let rarity = sat.as_ref().map(|s| s.rarity());
+      let percentile = sat.as_ref().map(|s| s.percentile());
+
+      let blocktime = if let Some(s) = sat {
+        Some(index.block_time(s.height())?.timestamp().timestamp())
+      } else {
+        None
+      };
+
+      // Combine `info` and `sat data` into a JSON object
+      let response = json!({
+        "address": info.address,
+        "children": info.children,
+        "content_length": info.content_length,
+        "content_type": info.content_type,
+        "effective_content_type": info.effective_content_type,
+        "genesis_height": info.height,
+        "inscription_id": info.id,
+        "inscription_number": info.number,
+        "next": info.next,
+        "output_value": info.value,
+        "parents": info.parents,
+        "previous": info.previous,
+        "rune": info.rune,
+        "sat": info.sat,
+        "satpoint": info.satpoint,
+        "timestamp": info.timestamp,
+        "metaprotocol": metaprotocol_string,
+        "metadata": metadata,
+        "charms": info.charms,
+        "genesis_transaction": info.id.txid  ,
+        "output": satpoint.outpoint,
+        "location": satpoint,
+        "offset": satpoint.offset,
+         "decimal":decimal,
+        "degree":degree,
+        "sat_name": name,
+        "block": block,
+        "cycle":cycle,
+        "epoch":epoch,
+        "period":period,
+        "sat_offset": offset,
+        "rarity":rarity,
+        "percentile":percentile,
+        "sat_timestamp": blocktime,
+
+
+      });
+
+      Ok(Json(response).into_response())
+    })
+  }
+
   async fn api_output(
     Extension(_server_config): Extension<Arc<ServerConfig>>,
     Extension(index): Extension<Arc<Index>>,
@@ -1088,7 +1178,7 @@ impl Server {
     AcceptJson(_accept_json): AcceptJson,
   ) -> ServerResult {
     task::block_in_place(|| {
-      let (output_info, txout) = index
+      let (output_info, _txout) = index
         .get_output_info(outpoint)?
         .ok_or_not_found(|| format!("output {outpoint}"))?;
 
@@ -1648,7 +1738,7 @@ impl Server {
         }
       }
 
-      let (info, txout, inscription) = index
+      let (info, txout, inscription, _entry) = index
         .inscription_info(query)?
         .ok_or_not_found(|| format!("inscription {query}"))?;
 
@@ -1692,7 +1782,7 @@ impl Server {
         let mut response = Vec::new();
         for inscription in inscriptions {
           let query = query::Inscription::Id(inscription);
-          let (info, _, _) = index
+          let (info, _, _, _) = index
             .inscription_info(query)?
             .ok_or_not_found(|| format!("inscription {query}"))?;
 

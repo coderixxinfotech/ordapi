@@ -1857,7 +1857,14 @@ impl Index {
   pub(crate) fn inscription_info(
     &self,
     query: query::Inscription,
-  ) -> Result<Option<(api::Inscription, Option<TxOut>, Inscription)>> {
+  ) -> Result<
+    Option<(
+      api::Inscription,
+      Option<TxOut>,
+      Inscription,
+      InscriptionEntry,
+    )>,
+  > {
     let rtx = self.database.begin_read()?;
 
     let sequence_number = match query {
@@ -2035,6 +2042,7 @@ impl Index {
       },
       output,
       inscription,
+      entry,
     )))
   }
 
