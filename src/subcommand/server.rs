@@ -184,8 +184,8 @@ impl Server {
           "/inscription/:inscription_query",
           get(Self::api_inscription),
         )
-        .route("/output/:output", get(Self::api_output));
-      // .route("/tx/:txid", get(Self::api_transaction));
+        .route("/output/:output", get(Self::api_output))
+        .route("/tx/:txid", get(Self::api_transaction));
 
       let router = Router::new()
         .route("/", get(Self::home))
@@ -1175,10 +1175,9 @@ impl Server {
     Extension(_server_config): Extension<Arc<ServerConfig>>,
     Extension(index): Extension<Arc<Index>>,
     Path(outpoint): Path<OutPoint>,
-    AcceptJson(_accept_json): AcceptJson,
   ) -> ServerResult {
     task::block_in_place(|| {
-      let (output_info, _txout) = index
+      let (_output_info, _txout) = index
         .get_output_info(outpoint)?
         .ok_or_not_found(|| format!("output {outpoint}"))?;
 
@@ -1236,41 +1235,79 @@ impl Server {
         inscription_details.push(detail);
       }
 
-      // Combine `output_info` and `inscription_details` into a JSON object
-      let response = json!({
-        "output_info": output_info,
-        "inscription_details": inscription_details,
-      });
-
-      Ok(Json(response).into_response())
+      Ok(Json(inscription_details).into_response())
     })
   }
 
-  // async fn api_transaction(
-  //   Extension(server_config): Extension<Arc<ServerConfig>>,
-  //   Extension(index): Extension<Arc<Index>>,
-  //   Path(txid): Path<Txid>,
-  //   AcceptJson(_accept_json): AcceptJson,
-  // ) -> ServerResult {
-  //   task::block_in_place(|| {
-  //     let transaction = index
-  //       .get_transaction(txid)?
-  //       .ok_or_not_found(|| format!("transaction {txid}"))?;
+  async fn fetch_api_output_info(
+    server_config: Arc<ServerConfig>,
+    index: Arc<Index>,
+    outpoint: OutPoint,
+  ) -> ServerResult<serde_json::Value> {
+    // Prepare parameters
+    let path = Path(outpoint);
+    let extension_server_config = Extension(server_config);
+    let extension_index = Extension(index);
+    // Call the `api_output` function
+    let response = Self::api_output(extension_server_config, extension_index, path).await?;
 
-  //     let inscription_count = index.inscription_count(txid)?;
+    // Extract the JSON content
+    if let Ok(body) = hyper::body::to_bytes(response.into_body()).await {
+      let json_value: serde_json::Value =
+        serde_json::from_slice(&body).unwrap_or_else(|_| serde_json::json!({}));
+      Ok(json_value)
+    } else {
+      Ok(serde_json::json!({}))
+    }
+  }
+  async fn api_transaction(
+    Extension(server_config): Extension<Arc<ServerConfig>>,
+    Extension(index): Extension<Arc<Index>>,
+    Path(txid): Path<Txid>,
+    AcceptJson(_accept_json): AcceptJson,
+  ) -> ServerResult {
+    // Fetch the transaction synchronously
+    let transaction = task::block_in_place(|| {
+      index
+        .get_transaction(txid)?
+        .ok_or_not_found(|| format!("transaction {txid}"))
+    })?;
 
-  //     Ok(
-  //       Json(api::Transaction {
-  //         chain: server_config.chain,
-  //         etching: index.get_etching(txid)?,
-  //         inscription_count,
-  //         transaction,
-  //         txid,
-  //       })
-  //       .into_response(),
-  //     )
-  //   })
-  // }
+    // Fetch the inscription count synchronously
+    let inscription_count = task::block_in_place(|| index.inscription_count(txid))?;
+
+    // Initialize a vector to hold output details
+    let mut outputs_info: Vec<serde_json::Value> = Vec::new();
+
+    // Loop through each output to fetch its details asynchronously
+    for (vout, _txout) in transaction.output.iter().enumerate() {
+      if vout == 20 {
+        break;
+      }
+      let outpoint = OutPoint {
+        txid,
+        vout: vout as u32,
+      };
+
+      // Fetch the output information asynchronously
+      let output_info =
+        Self::fetch_api_output_info(server_config.clone(), index.clone(), outpoint).await?;
+      outputs_info.push(output_info);
+    }
+
+    // Create a JSON object with all necessary transaction details
+    let response = serde_json::json!({
+      "chain": server_config.chain,
+      "etching": task::block_in_place(|| index.get_etching(txid))?,
+      "inscription_count": inscription_count,
+      "transaction": transaction,
+      "txid": txid,
+      "outputs_info": outputs_info,
+    });
+
+    // Return the JSON response
+    Ok(Json(response).into_response())
+  }
 
   // API FUNCTIONS
 
