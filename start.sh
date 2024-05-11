@@ -31,7 +31,7 @@ fi
 retries=0
 while [ $retries -lt 3 ]; do
     # Start the application
-    ord --rpc-url 146.190.11.6:8332 --bitcoin-rpc-user mempool --bitcoin-rpc-pass mempool --data-dir /root/.local/share/ord/$runDir server --http-port 8080 -j &>/dev/stdout &
+    ord --bitcoin-rpc-username mempool --bitcoin-rpc-password mempool --data-dir /root/.local/share/ord/$runDir server --http-port 8080 -j &>/dev/stdout &
 
     # Sleep for a few seconds to allow the server to start up
     sleep 5
@@ -69,9 +69,9 @@ while true; do
     if ! pgrep -x "pv" > /dev/null
     then
         echo "Checking wallet balance using main index.redb..."
-        ord --rpc-url 146.190.11.6:8332 --bitcoin-rpc-user mempool --bitcoin-rpc-pass mempool --wallet ord index update
+        ord --bitcoin-rpc-username mempool --bitcoin-rpc-password mempool index update
         echo "Checking wallet balance using index.redb not being used as server..."
-        ord --rpc-url 146.190.11.6:8332 --bitcoin-rpc-user mempool --bitcoin-rpc-pass mempool --data-dir /root/.local/share/ord/$copyDir --wallet ord index update
+        ord --bitcoin-rpc-username mempool --bitcoin-rpc-password mempool --data-dir /root/.local/share/ord/$copyDir index update
     fi
     sleep 1800
 done
