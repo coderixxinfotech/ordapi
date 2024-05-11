@@ -31,7 +31,7 @@ fi
 retries=0
 while [ $retries -lt 3 ]; do
     # Start the application
-    ord --bitcoin-rpc-username mempool --bitcoin-rpc-password mempool --data-dir /root/.local/share/ord/$runDir server --http-port 8080 -j &>/dev/stdout &
+    ord --bitcoin-rpc-username mempool --bitcoin-rpc-password mempool --data-dir /root/.local/share/ord/$runDir server --http-port 8080 &>/dev/stdout &
 
     # Sleep for a few seconds to allow the server to start up
     sleep 5
