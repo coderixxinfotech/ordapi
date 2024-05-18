@@ -1172,7 +1172,7 @@ impl Server {
   }
 
   async fn api_output(
-    Extension(_server_config): Extension<Arc<ServerConfig>>,
+    Extension(server_config): Extension<Arc<ServerConfig>>,
     Extension(index): Extension<Arc<Index>>,
     Path(outpoint): Path<OutPoint>,
   ) -> ServerResult {
@@ -1221,6 +1221,9 @@ impl Server {
           String::from_utf8(bytes.clone()).unwrap_or_else(|_| String::from("Invalid UTF-8"))
         });
 
+        // Extract the chain from the server config
+        let chain = server_config.chain;
+
         // Create a JSON object for this inscription
         let detail = json!({
           "inscription_id": inscription_id,
@@ -1228,7 +1231,13 @@ impl Server {
           "output": satpoint.outpoint,
           "offset": satpoint.offset,
           "output_value": output_value,
-          "metaprotocol": metaprotocol_string
+          "metaprotocol": metaprotocol_string,
+          "address": output_value
+                    .as_ref()
+                    .map(|v| chain.address_from_script(&v.script_pubkey)
+                        .map_err(|e| anyhow::anyhow!(e))  // Convert bitcoin::address::Error to anyhow::Error
+                        .map(|addr| addr.to_string()))  // Convert address to string
+                    .transpose()?
         });
 
         // Push this detail into the details array
