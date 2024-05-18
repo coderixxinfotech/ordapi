@@ -45,6 +45,8 @@ COPY --from=build /app/target/release /app
 
 # Add a startup script and change permissions while still root
 COPY start.sh /start.sh
+COPY healthcheck.sh /usr/local/bin/healthcheck.sh
+
 RUN chmod +x /start.sh
 
 # Add the directory containing the executable to the PATH
