@@ -1183,8 +1183,6 @@ impl Server {
 
       let inscriptions = index.get_inscriptions_on_output(outpoint)?;
 
-      // let runes = index.get_rune_balances_for_outpoint(outpoint)?;
-
       let mut inscription_details: Vec<serde_json::Value> = Vec::new();
 
       // Loop through each inscription_id in inscriptions array
@@ -1222,8 +1220,29 @@ impl Server {
         });
 
         // Extract the chain from the server config
-        let chain = server_config.chain;
+        let chain = &server_config.chain;
 
+        // Attempt to get the address from the script pubkey
+        let address_result = output_value
+          .as_ref()
+          .map(|v| {
+            chain
+              .address_from_script(&v.script_pubkey)
+              .map(|addr| addr.to_string())
+              .map_err(|e| anyhow::anyhow!(e)) // Convert bitcoin::address::Error to anyhow::Error
+          })
+          .transpose(); // Convert Option<Result<T, E>> to Result<Option<T>, E>
+
+        // Handle the address conversion result
+        // Handle the address conversion result
+        let address = match address_result {
+          Ok(Some(addr)) => Some(addr),
+          Ok(None) => None,
+          Err(_) => {
+            // Skip this inscription if address can't be derived
+            continue;
+          }
+        };
         // Create a JSON object for this inscription
         let detail = json!({
           "inscription_id": inscription_id,
@@ -1232,12 +1251,7 @@ impl Server {
           "offset": satpoint.offset,
           "output_value": output_value,
           "metaprotocol": metaprotocol_string,
-          "address": output_value
-                    .as_ref()
-                    .map(|v| chain.address_from_script(&v.script_pubkey)
-                        .map_err(|e| anyhow::anyhow!(e))  // Convert bitcoin::address::Error to anyhow::Error
-                        .map(|addr| addr.to_string()))  // Convert address to string
-                    .transpose()?
+            "address": address
         });
 
         // Push this detail into the details array
@@ -1301,7 +1315,11 @@ impl Server {
       // Fetch the output information asynchronously
       let output_info =
         Self::fetch_api_output_info(server_config.clone(), index.clone(), outpoint).await?;
+
+      // Check if output_info is not null before pushing it to outputs_info
+      if !output_info.is_null() {
       outputs_info.push(output_info);
+      }
     }
 
     // Create a JSON object with all necessary transaction details

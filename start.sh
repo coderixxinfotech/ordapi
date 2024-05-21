@@ -66,12 +66,19 @@ fi
 # Check balance every 30 minutes
 echo "Starting balance check every 30 minutes..."
 while true; do
-    if ! pgrep -x "pv" > /dev/null
-    then
+
+    # Check if the ord server command is running, if not, restart the system
+    if ! pgrep -x "ord" > /dev/null; then
+        echo "ord server is not running. Restarting the system..."
+        # Restart the system
+        /sbin/reboot
+    fi
+
+    if ! pgrep -x "pv" > /dev/null; then
         echo "Checking wallet balance using main index.redb..."
-        ord  --bitcoin-rpc-url bitcoin-container:8332 --bitcoin-rpc-username mempool --bitcoin-rpc-password mempool index update
+        ord --bitcoin-rpc-url bitcoin-container:8332 --bitcoin-rpc-username mempool --bitcoin-rpc-password mempool index update
         echo "Checking wallet balance using index.redb not being used as server..."
-        ord  --bitcoin-rpc-url bitcoin-container:8332 --bitcoin-rpc-username mempool --bitcoin-rpc-password mempool --data-dir /root/.local/share/ord/$copyDir index update
+        ord --bitcoin-rpc-url bitcoin-container:8332 --bitcoin-rpc-username mempool --bitcoin-rpc-password mempool --data-dir /root/.local/share/ord/$copyDir index update
     fi
     sleep 1800
 done
