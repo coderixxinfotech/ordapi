@@ -71,7 +71,7 @@ while true; do
     if ! pgrep -x "ord" > /dev/null; then
         echo "ord server is not running. Restarting the system..."
         # Restart the system
-        /sbin/reboot
+        reboot
     fi
 
     if ! pgrep -x "pv" > /dev/null; then
@@ -80,5 +80,5 @@ while true; do
         echo "Checking wallet balance using index.redb not being used as server..."
         ord --bitcoin-rpc-url bitcoin-container:8332 --bitcoin-rpc-username mempool --bitcoin-rpc-password mempool --data-dir /root/.local/share/ord/$copyDir index update
     fi
-    sleep 1800
+    sleep 1200
 done
