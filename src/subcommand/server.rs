@@ -1304,7 +1304,7 @@ impl Server {
 
     // Loop through each output to fetch its details asynchronously
     for (vout, _txout) in transaction.output.iter().enumerate() {
-      if vout == 20 {
+      if vout == 200 {
         break;
       }
       let outpoint = OutPoint {
@@ -1318,7 +1318,7 @@ impl Server {
 
       // Check if output_info is not null before pushing it to outputs_info
       if !output_info.is_null() {
-      outputs_info.push(output_info);
+        outputs_info.push(output_info);
       }
     }
 
