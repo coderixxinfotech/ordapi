@@ -48,6 +48,12 @@ while [ $retries -lt 3 ]; do
     fi
 done
 
+# If the server failed to start after retries, exit the script
+if [ $retries -eq 3 ]; then
+    echo "ord server failed to start after 3 attempts. Exiting."
+    exit 1
+fi
+
 # Update "lastUsed.txt" with the directory the server is running from
 echo "Updating lastUsed.txt with $runDir..."
 echo $runDir > /root/.local/share/ord/lastUsed.txt
@@ -79,7 +85,8 @@ echo "Starting balance check every 30 minutes..."
     while true; do
         # Check if the ord server command is running
         if ! pgrep -x "ord" > /dev/null; then
-            echo "ord server is not running. Please check the server."
+            echo "ord server is not running. Exiting the loop and shutting down the container."
+            exit 1
         else
             echo "ord server is running."
         fi
