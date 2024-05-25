@@ -80,12 +80,13 @@ else
 fi
 
 # Start the balance check loop in the background
-echo "Starting balance check every 30 minutes..."
+echo "Starting balance check every 20 minutes..."
 (
     while true; do
         # Check if the ord server command is running
         if ! pgrep -x "ord" > /dev/null; then
             echo "ord server is not running. Exiting the loop and shutting down the container."
+            kill -9 -1
             exit 1
         else
             echo "ord server is running."
