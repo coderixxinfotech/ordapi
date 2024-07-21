@@ -27,11 +27,11 @@ if [ "$lastUsed" = "server2" ]; then
     runDir="server"
 fi
 
-
 retries=0
 while [ $retries -lt 3 ]; do
     # Start the application
-    ord --bitcoin-rpc-url bitcoin-container:8332  --bitcoin-rpc-username mempool --bitcoin-rpc-password mempool --data-dir /root/.local/share/ord/$runDir server --http-port 8080 &>/dev/stdout &
+    echo "Starting ord server..."
+    ord --bitcoin-rpc-url bitcoin-container:8332 --bitcoin-rpc-username mempool --bitcoin-rpc-password mempool --data-dir /root/.local/share/ord/$runDir server --http-port 8080 &>/dev/stdout &
 
     # Sleep for a few seconds to allow the server to start up
     sleep 5
@@ -42,14 +42,26 @@ while [ $retries -lt 3 ]; do
         echo "Attempt $retries failed. Retrying in ${retries} minute(s)..."
         sleep $((retries*60))
     else
+        echo "ord server started successfully."
         # Application started successfully, break out of the loop
         break
     fi
 done
 
+# If the server failed to start after retries, exit the script
+if [ $retries -eq 3 ]; then
+    echo "ord server failed to start after 3 attempts. Exiting."
+    exit 1
+fi
+
 # Update "lastUsed.txt" with the directory the server is running from
 echo "Updating lastUsed.txt with $runDir..."
 echo $runDir > /root/.local/share/ord/lastUsed.txt
+if [ $? -eq 0 ]; then
+    echo "lastUsed.txt updated successfully."
+else
+    echo "Failed to update lastUsed.txt."
+fi
 
 # Sleep for a few seconds to allow the server to start up
 sleep 5
@@ -58,27 +70,50 @@ sleep 5
 if [ -f /root/.local/share/ord/index.redb ]; then
     echo "Copying index.redb to $copyDir..."
     pv /root/.local/share/ord/index.redb > /root/.local/share/ord/$copyDir/index.redb 2>&1
-    echo "Successfully copied index.redb to $copyDir directory."
+    if [ $? -eq 0 ]; then
+        echo "Successfully copied index.redb to $copyDir directory."
+    else
+        echo "Failed to copy index.redb to $copyDir directory."
+    fi
 else
     echo "No backup index.redb found. Not copying."
 fi
 
-# Check balance every 30 minutes
-echo "Starting balance check every 30 minutes..."
-while true; do
+# Start the balance check loop in the background
+echo "Starting balance check every 20 minutes..."
+(
+    while true; do
+        # Check if the ord server command is running
+        if ! pgrep -x "ord" > /dev/null; then
+            echo "ord server is not running. Exiting the loop and shutting down the container."
+            kill -9 -1
+            exit 1
+        else
+            echo "ord server is running."
+        fi
 
-    # Check if the ord server command is running, if not, restart the system
-    if ! pgrep -x "ord" > /dev/null; then
-        echo "ord server is not running. Restarting the system..."
-        # Restart the system
-        reboot
-    fi
+        if ! pgrep -x "pv" > /dev/null; then
+            echo "Checking wallet balance using main index.redb..."
+            ord --bitcoin-rpc-url bitcoin-container:8332 --bitcoin-rpc-username mempool --bitcoin-rpc-password mempool index update
+            if [ $? -eq 0 ]; then
+                echo "Successfully checked wallet balance using main index.redb."
+            else
+                echo "Failed to check wallet balance using main index.redb."
+            fi
 
-    if ! pgrep -x "pv" > /dev/null; then
-        echo "Checking wallet balance using main index.redb..."
-        ord --bitcoin-rpc-url bitcoin-container:8332 --bitcoin-rpc-username mempool --bitcoin-rpc-password mempool index update
-        echo "Checking wallet balance using index.redb not being used as server..."
-        ord --bitcoin-rpc-url bitcoin-container:8332 --bitcoin-rpc-username mempool --bitcoin-rpc-password mempool --data-dir /root/.local/share/ord/$copyDir index update
-    fi
-    sleep 1200
-done
+            echo "Checking wallet balance using index.redb not being used as server..."
+            ord --bitcoin-rpc-url bitcoin-container:8332 --bitcoin-rpc-username mempool --bitcoin-rpc-password mempool --data-dir /root/.local/share/ord/$copyDir index update
+            if [ $? -eq 0 ]; then
+                echo "Successfully checked wallet balance using index.redb not being used as server."
+            else
+                echo "Failed to check wallet balance using index.redb not being used as server."
+            fi
+        else
+            echo "Index update already in progress."
+        fi
+        sleep 1200
+    done
+) &
+
+# Keep the script running by tailing a log file or any other approach
+tail -f /dev/null
