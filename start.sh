@@ -86,64 +86,19 @@ echo "Starting balance check every 20 minutes..."
         # Check if the ord server command is running
         if ! pgrep -x "ord" > /dev/null; then
             echo "ord server is not running. Exiting the loop and shutting down the container."
-            
-            # Wait for any pv process to complete before shutting down
-            if pgrep -x "pv" > /dev/null; then
-                echo "pv process is running. Exiting the loop to avoid conflicts."
-                exit 1
-            fi
-            
             kill -9 -1
             exit 1
         else
             echo "ord server is running."
         fi
 
-        if pgrep -x "pv" > /dev/null; then
-            echo "Index update in progress. Exiting the loop to avoid conflicts."
-            exit 1
-        else
+        if ! pgrep -x "pv" > /dev/null; then
             echo "Checking wallet balance using main index.redb..."
-
-            # Start the index update in the background and store the PID
-            ord --bitcoin-rpc-url bitcoin-container:8332 --bitcoin-rpc-username mempool --bitcoin-rpc-password mempool index update &
-            update_pid=$!
-
-            # Wait for up to 10 minutes for the index update to complete
-            wait_time=0
-            while kill -0 $update_pid 2> /dev/null; do
-                sleep 10
-                wait_time=$((wait_time + 10))
-                if [ $wait_time -ge 600 ]; then
-                    echo "Index update taking too long. Killing the process..."
-                    kill -9 $update_pid
-                    wait $update_pid 2> /dev/null
-                    echo "Copying index.redb from $copyDir to main directory..."
-                    pv /root/.local/share/ord/$copyDir/index.redb > /root/.local/share/ord/index.redb 2>&1
-                    if [ $? -eq 0 ]; then
-                        echo "Successfully copied index.redb from $copyDir to main directory."
-                    else
-                        echo "Failed to copy index.redb from $copyDir to main directory."
-                    fi
-                    echo "Killing all processes and shutting down the container."
-                    
-                    # Wait for any pv process to complete before shutting down
-                    if pgrep -x "pv" > /dev/null; then
-                        echo "pv process is running. Exiting the loop to avoid conflicts."
-                        exit 1
-                    fi
-
-                    kill -9 -1
-                    exit 1
-                fi
-            done
-
-            if [ $wait_time -lt 600 ]; then
-                if [ $? -eq 0 ]; then
-                    echo "Successfully checked wallet balance using main index.redb."
-                else
-                    echo "Failed to check wallet balance using main index.redb."
-                fi
+            ord --bitcoin-rpc-url bitcoin-container:8332 --bitcoin-rpc-username mempool --bitcoin-rpc-password mempool index update
+            if [ $? -eq 0 ]; then
+                echo "Successfully checked wallet balance using main index.redb."
+            else
+                echo "Failed to check wallet balance using main index.redb."
             fi
 
             echo "Checking wallet balance using index.redb not being used as server..."
@@ -153,6 +108,8 @@ echo "Starting balance check every 20 minutes..."
             else
                 echo "Failed to check wallet balance using index.redb not being used as server."
             fi
+        else
+            echo "Index update already in progress."
         fi
         sleep 1200
     done
