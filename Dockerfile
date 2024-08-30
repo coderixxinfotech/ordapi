@@ -21,6 +21,12 @@ RUN apt-get update && apt-get install -y \
     sudo \
     && rm -rf /var/lib/apt/lists/*
 
+# Install Node.js, npm, and Yarn
+RUN curl -fsSL https://deb.nodesource.com/setup_18.x | bash - \
+    && apt-get install -y nodejs \
+    && npm install --global yarn \
+    && rm -rf /var/lib/apt/lists/*
+
 # Copy local Rust code to the container
 COPY ./ /app/
 
@@ -28,6 +34,9 @@ COPY ./ /app/
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y \
     && . $HOME/.cargo/env \
     && cargo build --release
+
+# Navigate to the indexer directory and run yarn
+RUN cd /app/indexer && yarn install
 
 # Add a startup script and change permissions while still root
 COPY start.sh /start.sh
