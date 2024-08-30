@@ -4,7 +4,7 @@ on:
   push:
     branches:
       - 'ordapi*'
-      - '0.18-api'
+      - '0.18-opi'
 
 env:
   BASE_IMAGE_NAME: crypticmetadev/ordapi
