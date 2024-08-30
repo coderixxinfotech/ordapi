@@ -19,7 +19,7 @@ jobs:
 
       - name: Build ordapi image
         run: |
-          docker build \
+          docker build --no-cache \
           -t ${{ env.IMAGE_NAME }} . \
           --build-arg MONGODB_URI=${{ secrets.MONGODB_URI }}
 
