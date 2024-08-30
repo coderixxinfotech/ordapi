@@ -37,11 +37,18 @@ jobs:
           -t ${{ env.IMAGE_NAME }} . \
           --build-arg MONGODB_URI=${{ secrets.MONGODB_URI }}
 
+      - name: List Docker images
+        run: docker images
+
       - name: Log in to Docker registry
         uses: docker/login-action@v1
         with:
           username: crypticmetadev
           password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: List Docker images
+        run: docker images
+
 
       - name: Push image to Docker registry
         run: |
