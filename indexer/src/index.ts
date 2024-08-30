@@ -2,7 +2,7 @@
 // to run: node --max-old-space-size=8192 ./index.ts
 
 // NOTE: there is a possibility that if json contains \u0000, it'll be saved into text_content not content (jsonb)
-const LIMIT = 1;
+const LIMIT = 100;
 import dotenv from 'dotenv';
 dotenv.config();
 
