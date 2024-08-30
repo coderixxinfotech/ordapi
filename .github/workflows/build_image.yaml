@@ -23,7 +23,7 @@ jobs:
           -t ${{ env.IMAGE_NAME }} . \
           --build-arg MONGODB_URI=${{ secrets.MONGODB_URI }}
 
-      - name: List Docker images
+      - name: List Docker images (Optional)
         run: docker images
 
       - name: Log in to Docker registry
@@ -32,11 +32,5 @@ jobs:
           username: crypticmetadev
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: List Docker images
-        run: docker images
-
-
       - name: Push image to Docker registry
-        run: |
-          docker push ${{ env.IMAGE_NAME }}
-
+        run: docker push ${{ env.IMAGE_NAME }}
