@@ -6,11 +6,8 @@ on:
       - 'ordapi*'
       - 'opi*'
 
-env:
-  BASE_IMAGE_NAME: crypticmetadev/ordapi
-
 jobs:
-  build-and-push-backend:
+  build-and-push-cronjob:
     runs-on: ubuntu-latest
     env:
       BRANCH_NAME: ${{ github.ref_name }}
