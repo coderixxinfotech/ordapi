@@ -1,6 +1,7 @@
 use {
   self::{inscription_updater::InscriptionUpdater, rune_updater::RuneUpdater},
   super::{fetcher::Fetcher, *},
+  fs::File,
   futures::future::try_join_all,
   std::sync::mpsc,
   tokio::sync::mpsc::{error::TryRecvError, Receiver, Sender},
@@ -312,6 +313,36 @@ impl<'index> Updater<'index> {
     block: BlockData,
     value_cache: &mut HashMap<OutPoint, u64>,
   ) -> Result<()> {
+    lazy_static! {
+      static ref LOG_FILE: Mutex<Option<File>> = Mutex::new(None);
+    }
+    let mut log_file = LOG_FILE.lock().unwrap();
+    if log_file.as_ref().is_none() {
+      // let chain_folder: String = match self.index.options.chain() {
+      //   Chain::Mainnet => String::from(""),
+      //   Chain::Testnet => String::from("testnet3/"),
+      //   Chain::Signet => String::from("signet/"),
+      //   Chain::Regtest => String::from("regtest/"),
+      // };
+      *log_file = Some(
+        File::options()
+          .append(true)
+          .open(format!("log_file_index.txt"))
+          .unwrap(),
+      );
+    }
+    println!(
+      "cmd;{0};new_block;{1}",
+      self.height,
+      &block.header.block_hash()
+    );
+    writeln!(
+      log_file.as_ref().unwrap(),
+      "cmd;{0};new_block;{1}",
+      self.height,
+      &block.header.block_hash()
+    )?;
+    (log_file.as_ref().unwrap()).flush()?;
     Reorg::detect_reorg(&block, self.height, self.index)?;
 
     let start = Instant::now();
@@ -444,6 +475,7 @@ impl<'index> Updater<'index> {
       unbound_inscriptions,
       value_cache,
       value_receiver,
+      first_in_block: true,
     };
 
     if self.index.index_sats {
@@ -549,6 +581,8 @@ impl<'index> Updater<'index> {
       }
     }
 
+    inscription_updater.end_block()?;
+
     if index_inscriptions {
       height_to_last_sequence_number
         .insert(&self.height, inscription_updater.next_sequence_number)?;
@@ -630,15 +664,15 @@ impl<'index> Updater<'index> {
     Ok(())
   }
 
-  fn index_transaction_sats(
+  fn index_transaction_sats<'a, 'tx>(
     &mut self,
-    tx: &Transaction,
+    tx: &'tx Transaction,
     txid: Txid,
     sat_to_satpoint: &mut Table<u64, &SatPointValue>,
     input_sat_ranges: &mut VecDeque<(u64, u64)>,
     sat_ranges_written: &mut u64,
     outputs_traversed: &mut u64,
-    inscription_updater: &mut InscriptionUpdater,
+    inscription_updater: &mut InscriptionUpdater<'a, 'tx>,
     index_inscriptions: bool,
   ) -> Result {
     if index_inscriptions {

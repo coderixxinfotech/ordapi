@@ -1,4 +1,5 @@
 use super::*;
+use sha3::{Digest, Sha3_256};
 
 #[derive(Debug, PartialEq, Copy, Clone)]
 enum Curse {
@@ -14,10 +15,11 @@ enum Curse {
 }
 
 #[derive(Debug, Clone)]
-pub(super) struct Flotsam {
+pub(super) struct Flotsam<'a> {
   inscription_id: InscriptionId,
   offset: u64,
   origin: Origin,
+  tx_option: Option<&'a Transaction>,
 }
 
 #[derive(Debug, Clone)]
@@ -37,13 +39,21 @@ enum Origin {
   },
 }
 
+lazy_static! {
+  pub static ref TX_LIMITS: HashMap<String, i16> = {
+    let mut m = HashMap::<String, i16>::new();
+    m.insert("default".into(), 2);
+    m
+  };
+}
+
 pub(super) struct InscriptionUpdater<'a, 'tx> {
   pub(super) blessed_inscription_count: u64,
   pub(super) chain: Chain,
   pub(super) content_type_to_count: &'a mut Table<'tx, Option<&'static [u8]>, u64>,
   pub(super) cursed_inscription_count: u64,
   pub(super) event_sender: Option<&'a Sender<Event>>,
-  pub(super) flotsam: Vec<Flotsam>,
+  pub(super) flotsam: Vec<Flotsam<'a>>,
   pub(super) height: u32,
   pub(super) home_inscription_count: u64,
   pub(super) home_inscriptions: &'a mut Table<'tx, u32, InscriptionIdValue>,
@@ -65,15 +75,24 @@ pub(super) struct InscriptionUpdater<'a, 'tx> {
   pub(super) unbound_inscriptions: u64,
   pub(super) value_cache: &'a mut HashMap<OutPoint, u64>,
   pub(super) value_receiver: &'a mut Receiver<u64>,
+  pub(super) first_in_block: bool,
 }
 
+use hex;
+use serde_json::Value;
+use std::env;
+use std::fs::{File, OpenOptions};
+
 impl<'a, 'tx> InscriptionUpdater<'a, 'tx> {
+  
   pub(super) fn index_inscriptions(
     &mut self,
-    tx: &Transaction,
+    tx: &'a Transaction,
     txid: Txid,
     input_sat_ranges: Option<&VecDeque<(u64, u64)>>,
   ) -> Result {
+
+
     let mut floating_inscriptions = Vec::new();
     let mut id_counter = 0;
     let mut inscribed_offsets = BTreeMap::new();
@@ -89,6 +108,7 @@ impl<'a, 'tx> InscriptionUpdater<'a, 'tx> {
       // skip subsidy since no inscriptions possible
       if tx_in.previous_output.is_null() {
         total_input_value += Height(self.height).subsidy();
+        
         continue;
       }
 
@@ -99,10 +119,12 @@ impl<'a, 'tx> InscriptionUpdater<'a, 'tx> {
         tx_in.previous_output,
       )? {
         let offset = total_input_value + old_satpoint.offset;
+
         floating_inscriptions.push(Flotsam {
           offset,
           inscription_id,
           origin: Origin::Old { old_satpoint },
+          tx_option: Some(&tx),
         });
 
         inscribed_offsets
@@ -221,6 +243,7 @@ impl<'a, 'tx> InscriptionUpdater<'a, 'tx> {
               || inscription.payload.unrecognized_even_field,
             vindicated: curse.is_some() && jubilant,
           },
+          tx_option: Some(&tx)
         });
 
         inscribed_offsets
@@ -281,7 +304,8 @@ impl<'a, 'tx> InscriptionUpdater<'a, 'tx> {
       .map(|tx_in| tx_in.previous_output.is_null())
       .unwrap_or_default();
 
-    if is_coinbase {
+    let own_inscription_cnt = floating_inscriptions.len();   
+     if is_coinbase {
       floating_inscriptions.append(&mut self.flotsam);
     }
 
@@ -290,7 +314,9 @@ impl<'a, 'tx> InscriptionUpdater<'a, 'tx> {
 
     let mut range_to_vout = BTreeMap::new();
     let mut new_locations = Vec::new();
+
     let mut output_value = 0;
+    let mut inscription_idx = 0;
     for (vout, tx_out) in tx.output.iter().enumerate() {
       let end = output_value + tx_out.value;
 
@@ -299,6 +325,9 @@ impl<'a, 'tx> InscriptionUpdater<'a, 'tx> {
           break;
         }
 
+        let sent_to_coinbase = inscription_idx >= own_inscription_cnt;
+        inscription_idx += 1;
+
         let new_satpoint = SatPoint {
           outpoint: OutPoint {
             txid,
@@ -306,8 +335,7 @@ impl<'a, 'tx> InscriptionUpdater<'a, 'tx> {
           },
           offset: flotsam.offset - output_value,
         };
-
-        new_locations.push((new_satpoint, inscriptions.next().unwrap()));
+        new_locations.push((new_satpoint, sent_to_coinbase, tx_out, inscriptions.next().unwrap()));
       }
 
       range_to_vout.insert((output_value, end), vout.try_into().unwrap());
@@ -323,7 +351,8 @@ impl<'a, 'tx> InscriptionUpdater<'a, 'tx> {
       );
     }
 
-    for (new_satpoint, mut flotsam) in new_locations.into_iter() {
+
+    for (new_satpoint, sent_to_coinbase, tx_out, mut flotsam) in new_locations.into_iter() {
       let new_satpoint = match flotsam.origin {
         Origin::New {
           pointer: Some(pointer),
@@ -345,7 +374,16 @@ impl<'a, 'tx> InscriptionUpdater<'a, 'tx> {
         _ => new_satpoint,
       };
 
-      self.update_inscription_location(input_sat_ranges, flotsam, new_satpoint)?;
+   let tx = flotsam.tx_option.clone().unwrap();
+      self.update_inscription_location(
+        Some(&tx),
+        Some(&tx_out.script_pubkey),
+        Some(&tx_out.value),
+        input_sat_ranges,
+        flotsam,
+        new_satpoint,
+        sent_to_coinbase,
+      )?;
     }
 
     if is_coinbase {
@@ -354,19 +392,37 @@ impl<'a, 'tx> InscriptionUpdater<'a, 'tx> {
           outpoint: OutPoint::null(),
           offset: self.lost_sats + flotsam.offset - output_value,
         };
-        self.update_inscription_location(input_sat_ranges, flotsam, new_satpoint)?;
+
+           let tx = flotsam.tx_option.clone().unwrap();
+        self.update_inscription_location(
+          Some(&tx),
+          None,
+          None,
+          input_sat_ranges,
+          flotsam,
+          new_satpoint,
+          true,
+        )?;
       }
       self.lost_sats += self.reward - output_value;
       Ok(())
     } else {
-      self.flotsam.extend(inscriptions.map(|flotsam| Flotsam {
-        offset: self.reward + flotsam.offset - output_value,
-        ..flotsam
-      }));
-      self.reward += total_input_value - output_value;
-      Ok(())
+    for flotsam in inscriptions {
+        self.flotsam.push(Flotsam {
+            offset: self.reward + flotsam.offset - output_value,
+            ..flotsam
+        });
+
+        // ord indexes sent as fee transfers at the end of the block but it would make more sense if they were indexed as soon as they are sent
+        self.write_to_file(
+            format!("cmd;{0};insert;early_transfer_sent_as_fee;{1}", self.height, flotsam.inscription_id), 
+            true
+        )?;
     }
+    self.reward += total_input_value - output_value;
+    Ok(())
   }
+}
 
   fn calculate_sat(
     input_sat_ranges: Option<&VecDeque<(u64, u64)>>,
@@ -387,12 +443,97 @@ impl<'a, 'tx> InscriptionUpdater<'a, 'tx> {
     unreachable!()
   }
 
+  fn get_json_tx_limit(inscription_content_option: &Option<Vec<u8>>) -> i16 {
+    if inscription_content_option.is_none() {
+      return 0;
+    }
+    let inscription_content = inscription_content_option.as_ref().unwrap();
+
+    let json = serde_json::from_slice::<Value>(&inscription_content);
+    if json.is_err() {
+      return 0;
+    } else {
+      // check for event type and return tx limit
+      return TX_LIMITS["default"];
+    }
+  }
+
+  fn is_text(inscription_content_type_option: &Option<Vec<u8>>) -> bool {
+    if inscription_content_type_option.is_none() {
+      return false;
+    }
+
+    let inscription_content_type = inscription_content_type_option.as_ref().unwrap();
+    let inscription_content_type_str = std::str::from_utf8(&inscription_content_type).unwrap_or("");
+    return inscription_content_type_str == "text/plain"
+      || inscription_content_type_str.starts_with("text/plain;")
+      || inscription_content_type_str == "application/json"
+      || inscription_content_type_str.starts_with("application/json;"); // NOTE: added application/json for JSON5 etc.
+  }
+fn write_to_file(&mut self, to_write: String, flush: bool) -> Result {
+    lazy_static! {
+      static ref INSCRIPTIONS: Mutex<Option<File>> = Mutex::new(None);
+    }
+    let mut inscriptions = INSCRIPTIONS.lock().unwrap();
+    if inscriptions.as_ref().is_none() {
+      let chain_folder: String = match self.chain {
+        Chain::Mainnet => String::from(""),
+        Chain::Testnet => String::from("testnet3/"),
+        Chain::Signet => String::from("signet/"),
+        Chain::Regtest => String::from("regtest/"),
+      };
+
+       let current_dir = env::current_dir().unwrap();
+    let file_path = current_dir.join(format!("{}inscriptions.txt", chain_folder));
+
+
+    // Check if the file exists, create if not, and then open for appending
+    let file = OpenOptions::new()
+        .create(true)  // Create the file if it doesn't exist
+        .append(true)  // Open for appending
+        .open(&file_path)
+        .unwrap();
+
+    *inscriptions = Some(file);
+    }
+    if to_write != "" {
+      if self.first_in_block {
+        // println!("cmd;{0};block_start", self.height);
+        writeln!(
+          inscriptions.as_ref().unwrap(),
+          "cmd~||~{0}~||~block_start",
+          self.height,
+        )?;
+      }
+      self.first_in_block = false;
+
+      writeln!(inscriptions.as_ref().unwrap(), "{}", to_write)?;
+    }
+    if flush {
+      (inscriptions.as_ref().unwrap()).flush()?;
+    }
+
+    Ok(())
+  }
+  pub(super) fn end_block(&mut self) -> Result {
+    if !self.first_in_block {
+      println!("cmd~||~{0}~||~block_end", self.height);
+      self.write_to_file(format!("cmd~||~{0}~||~block_end", self.height), true)?;
+    }
+
+    Ok(())
+  }
   fn update_inscription_location(
     &mut self,
+    tx_option: Option<&Transaction>,
+    new_script_pubkey: Option<&ScriptBuf>,
+    new_output_value: Option<&u64>,
     input_sat_ranges: Option<&VecDeque<(u64, u64)>>,
     flotsam: Flotsam,
     new_satpoint: SatPoint,
+    send_to_coinbase: bool,
   ) -> Result {
+    let tx = tx_option.unwrap();
     let inscription_id = flotsam.inscription_id;
     let (unbound, sequence_number) = match flotsam.origin {
       Origin::Old { old_satpoint } => {
@@ -405,6 +546,38 @@ impl<'a, 'tx> InscriptionUpdater<'a, 'tx> {
           .get(&inscription_id.store())?
           .unwrap()
           .value();
+
+        self.write_to_file(
+    format!(
+        "cmd~||~height:{}~||~insert~||~transfer~||~inscription_id:{}~||~old_location:{old_satpoint}~||~new_location:{new_satpoint}~||~sent_as_fee:{send_to_coinbase}~||~new_pubkey:{}~||~new_output_value:{}~||~new_address:{:?}~||~timestamp:{:?}",
+        self.height,
+        flotsam.inscription_id,
+        hex::encode(
+            new_script_pubkey
+                .unwrap_or(&ScriptBuf::new())  // Provide a default empty script if none
+                .clone()
+                .into_bytes()
+        ),
+        new_output_value.unwrap_or(&0),  // Provide a default output value of 0 if none
+        new_script_pubkey
+            .and_then(|script| Some(self.chain.address_from_script(script)))  // Convert script to address
+            .map_or_else(
+                || "Invalid script".to_string(),
+                |result| result
+                    .map(|address| format!("{:?}", address))  // Use Debug formatting for NetworkUnchecked address
+                    .unwrap_or_else(|_| "Invalid address".to_string())
+            ), self.timestamp
+    ), 
+    false,
+)?;
+
+        // self.write_to_file(
+        //         format!(
+        //             "InscriptionTransferred;block_height={};inscription_id={};new_location={};old_location={};sequence_number={}",
+        //             self.height, inscription_id, new_satpoint, old_satpoint, sequence_number
+        //         ),
+        //         true,
+        //     )?;
 
         if let Some(sender) = self.event_sender {
           sender.blocking_send(Event::InscriptionTransferred {
@@ -444,6 +617,28 @@ impl<'a, 'tx> InscriptionUpdater<'a, 'tx> {
         self
           .inscription_number_to_sequence_number
           .insert(inscription_number, sequence_number)?;
+
+        // println!("Transaction detail: {:?}      Inscription number: {}", tx.txid(), inscription_number);
+
+        let inscription = ParsedEnvelope::from_transaction(&tx)
+          .get(flotsam.inscription_id.index as usize)
+          .unwrap()
+          .payload
+          .clone();
+
+
+
+        let rune = inscription.rune.as_ref();
+        let delegate = inscription.delegate();
+        let metadata = inscription.metadata();// inscription.metadata.as_ref().map(|v| String::from_utf8_lossy(v));
+        let timestamp = self.timestamp;
+        let inscription_content = inscription.body;
+        let inscription_content_type = inscription.content_type;
+        let inscription_metaprotocol = inscription.metaprotocol;
+        let json_txcnt_limit = Self::get_json_tx_limit(&inscription_content);
+        let is_json = json_txcnt_limit > 0;
+        let is_text = Self::is_text(&inscription_content_type);
+        let is_json_or_text = is_json || is_text;
 
         let sat = if unbound {
           None
@@ -497,6 +692,217 @@ impl<'a, 'tx> InscriptionUpdater<'a, 'tx> {
             Ok(parent_sequence_number)
           })
           .collect::<Result<Vec<u32>>>()?;
+
+        // Define a set of resource-intensive content types
+        let resource_intensive_types: HashSet<&str> = [
+          "video/mp4",
+          "video/mpeg",
+          "audio/mpeg",
+          "audio/wav",
+          "audio/ogg",
+          // Add other content types you want to exclude
+        ]
+        .iter()
+        .cloned()
+        .collect();
+
+        // Convert the content type to a string, assuming it's valid UTF-8
+        let inscription_content_type_str =
+          String::from_utf8(inscription_content_type.unwrap_or(Vec::new()))
+            .unwrap_or_else(|_| String::from(""));
+
+        // Convert the metaprotocol to a string, assuming it's valid UTF-8
+        let inscription_metaprotocol_str =
+          String::from_utf8(inscription_metaprotocol.unwrap_or(Vec::new()))
+            .unwrap_or_else(|_| String::from(""));
+
+        // Declare `sha3_256_hash` outside of the if-else block, initialized as `None`
+        let mut sha3_256_hash: Option<String> = None;
+
+        // Borrow `inscription_content` to avoid moving it
+        let mut inscription_content_byte = inscription_content
+          .as_ref()
+          .map_or(Vec::new(), |v| v.clone());
+
+        // Check if the content type is UTF-8 based
+        if inscription_content_type_str.contains("utf-8") || inscription_content_type_str.contains("text") {
+            // Convert the byte content to a string, remove spaces and newlines, then convert back to bytes
+            if let Ok(mut content_str) = String::from_utf8(inscription_content_byte.clone()) {
+                content_str = content_str.replace(|c: char| c.is_whitespace(), "");
+                inscription_content_byte = content_str.into_bytes();
+            }
+        }
+
+        // Check if the content type is resource-intensive
+        if resource_intensive_types.contains(inscription_content_type_str.as_str()) {
+          // println!(
+          //   "Content type {} is resource-intensive, skipping hash calculation.",
+          //   inscription_content_type_str
+          // );
+        } else {
+          // Compute the SHA3-256 hash for `inscription_content`
+          let mut hasher = Sha3_256::new();
+          hasher.update(&inscription_content_byte);
+          let result = hasher.finalize();
+          sha3_256_hash = Some(format!("{:x}", result)); // Convert the hash to a hex string
+        }
+        let _txcnt_limit = if !unbound && is_json_or_text {
+          self.write_to_file(
+            format!(
+              "cmd~||~{0}~||~insert~||~number_to_id~||~{1}~||~{2}~||~{3}",
+              self.height,
+              inscription_number,
+              flotsam.inscription_id,
+              parents
+                .iter()
+                .map(|p| p.to_string())
+                .collect::<Vec<_>>()
+                .join(",")
+            ),
+            false,
+          )?;
+
+          // write content as minified json
+          if is_json {
+            let inscription_content_json =
+              serde_json::from_slice::<Value>(&(inscription_content.unwrap())).unwrap();
+            let inscription_content_json_str =
+              serde_json::to_string(&inscription_content_json).unwrap();
+
+            self.write_to_file(
+              format!(
+                "cmd~||~height:{}~||~insert~||~content~||~inscription_number:{}~||~inscription_id:{}~||~is_json:{}~||~content_type:{}~||~metaprotocol:{}~||~content_json:{}~||~parents:{}~||~sat:{:?}~||~timestamp:{}~||~location:{:?}~||~charms:{}~||~output_value:{}~||~address:{:?}~||~delegate:{:?}~||~sha:{:?}~||~rune:{:?}~||~metadata:{:?}",
+                self.height,
+                inscription_number,
+                flotsam.inscription_id,
+                is_json,
+                inscription_content_type_str,
+                inscription_metaprotocol_str,
+                inscription_content_json_str,
+                parents
+                .iter()
+                .map(|p| p.to_string())
+                .collect::<Vec<_>>()
+                .join(","),sat.unwrap(), timestamp,(!unbound).then_some(new_satpoint), charms, new_output_value.unwrap_or(&0),  // Provide a default output value of 0 if none
+        new_script_pubkey
+            .and_then(|script| Some(self.chain.address_from_script(script)))  // Convert script to address
+            .map_or_else(
+                || "Invalid script".to_string(),
+                |result| result
+                    .map(|address| format!("{:?}", address))  // Use Debug formatting for NetworkUnchecked address
+                    .unwrap_or_else(|_| "Invalid address".to_string())
+            ), delegate,
+             sha3_256_hash.unwrap_or_else(|| "".to_string()),
+             rune,  match &metadata {
+            Some(meta) => format!("{:?}", meta), // Convert metadata to string if available
+            None => "".to_string(), // Handle the case where metadata is None
+        }
+              ),
+              false,
+            )?;
+
+            json_txcnt_limit
+          } else {
+            let inscription_content_str = String::from_utf8(inscription_content.unwrap_or(Vec::new()))
+    .unwrap_or_else(|_| String::from(""))
+    .replace(|c: char| c.is_whitespace(), "");
+
+
+            self.write_to_file(
+              format!(
+                "cmd~||~height:{}~||~insert~||~content~||~inscription_number:{}~||~inscription_id:{}~||~is_json:{}~||~content_type:{}~||~metaprotocol:{}~||~content:{}~||~parents:{}~||~sat:{:?}~||~timestamp:{}~||~location:{:?}~||~charms:{}~||~output_value:{}~||~address:{:?}~||~delegate:{:?}~||~sha:{:?}~||~rune:{:?}~||~metadata:{:?}",
+                self.height,
+                inscription_number,
+                flotsam.inscription_id,
+                is_json,
+                inscription_content_type_str,
+                inscription_metaprotocol_str,
+                inscription_content_str,
+                parents
+                .iter()
+                .map(|p| p.to_string())
+                .collect::<Vec<_>>()
+                .join(","),
+                sat, timestamp,(!unbound).then_some(new_satpoint), charms, new_output_value.unwrap_or(&0),  // Provide a default output value of 0 if none
+        new_script_pubkey
+            .and_then(|script| Some(self.chain.address_from_script(script)))  // Convert script to address
+            .map_or_else(
+                || "Invalid script".to_string(),
+                |result| result
+                    .map(|address| format!("{:?}", address))  // Use Debug formatting for NetworkUnchecked address
+                    .unwrap_or_else(|_| "Invalid address".to_string())
+            ), delegate,
+             sha3_256_hash.unwrap_or_else(|| "".to_string()),
+             rune,  match &metadata {
+            Some(meta) => format!("{:?}", meta), // Convert metadata to string if available
+            None => "".to_string(), // Handle the case where metadata is None
+        }
+              ),
+              false,
+            )?;
+
+            TX_LIMITS["default"]
+          }
+        } else {
+          self.write_to_file(
+            format!(
+              "cmd~||~{0}~||~insert~||~number_to_id~||~{1}~||~{2}~||~{3}",
+              self.height,
+              inscription_number,
+              flotsam.inscription_id,
+              parents
+                .iter()
+                .map(|p| p.to_string())
+                .collect::<Vec<_>>()
+                .join(",")
+            ),
+            false,
+          )?;
+
+          let inscription_content_str =
+            String::from_utf8(inscription_content.unwrap_or(Vec::new()))
+              .unwrap_or_else(|_| String::from(""));
+
+          // let inscription_content_type_str =
+          //   String::from_utf8(inscription_content_type.unwrap_or(Vec::new()))
+          //     .unwrap_or_else(|_| String::from("Invalid UTF-8"));
+
+          // let inscription_metaprotocol_str =
+          //   String::from_utf8(inscription_metaprotocol.unwrap_or(Vec::new()))
+          //     .unwrap_or_else(|_| String::from("Invalid UTF-8"));
+          self.write_to_file(
+              format!(
+                "cmd~||~height:{}~||~insert~||~content~||~inscription_number:{}~||~inscription_id:{}~||~is_json:{}~||~content_type:{}~||~metaprotocol:{}~||~content:{:?}~||~parents:{}~||~sat:{:?}~||~timestamp:{}~||~location:{:?}~||~charms:{}~||~output_value:{}~||~address:{:?}~||~delegate:{:?}~||~sha:{:?}~||~rune:{:?}~||~metadata:{:?}",
+                self.height,
+                inscription_number,
+                flotsam.inscription_id,
+                is_json,
+                inscription_content_type_str,
+                inscription_metaprotocol_str,
+                inscription_content_str,
+                parents
+                .iter()
+                .map(|p| p.to_string())
+                .collect::<Vec<_>>()
+                .join(","),sat.unwrap(), timestamp,(!unbound).then_some(new_satpoint), charms, new_output_value.unwrap_or(&0),  // Provide a default output value of 0 if none
+        new_script_pubkey
+            .and_then(|script| Some(self.chain.address_from_script(script)))  // Convert script to address
+            .map_or_else(
+                || "Invalid script".to_string(),
+                |result| result
+                    .map(|address| format!("{:?}", address))  // Use Debug formatting for NetworkUnchecked address
+                    .unwrap_or_else(|_| "Invalid address".to_string())
+            ), delegate,
+             sha3_256_hash.unwrap_or_else(|| "".to_string()),
+             rune,  match &metadata {
+            Some(meta) => format!("{:?}", meta), // Convert metadata to string if available
+            None => "".to_string(), // Handle the case where metadata is None
+        }
+              ),
+              false,
+            )?;
+          0
+        };
 
         if let Some(sender) = self.event_sender {
           sender.blocking_send(Event::InscriptionCreated {
@@ -562,6 +968,8 @@ impl<'a, 'tx> InscriptionUpdater<'a, 'tx> {
     self
       .sequence_number_to_satpoint
       .insert(sequence_number, &satpoint)?;
+
+    self.write_to_file("".to_string(), true)?;
 
     Ok(())
   }

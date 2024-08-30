@@ -1,119 +1,67 @@
-#!/bin/sh
-echo "CONTAINER RESTARTED"
+#!/bin/bash
 
-# Check if "lastUsed.txt" file exists and read its content
-lastUsed=""
-if [ -f /root/.local/share/ord/lastUsed.txt ]; then
-    lastUsed=$(cat /root/.local/share/ord/lastUsed.txt)
-else
-    echo "lastUsed.txt file not found. Setting lastUsed to server2 and copying index.redb to server directory."
-    echo "server2" > /root/.local/share/ord/lastUsed.txt
-    if [ -f /root/.local/share/ord/index.redb ]; then
-        pv /root/.local/share/ord/index.redb > /root/.local/share/ord/server/index.redb 2>&1
-        echo "Successfully copied index.redb to server directory."
-    else
-        echo "No backup index.redb found. Not copying."
-    fi
-    exit 1
-fi
+# Define variables
+INDEX_FILE="/root/.local/share/ord/index.redb"
+BACKUP_DIR="/root/.local/share/ord/backup"
+TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+BACKUP_FILE="$BACKUP_DIR/index.redb.$TIMESTAMP"
+YARN_PID_FILE="/var/run/yarn.pid"
 
-echo "Last used directory: $lastUsed"
-
-# If lastUsed was "server2" copy to server2 directory and run from server directory, else vice versa
-copyDir="server"
-runDir="server2"
-if [ "$lastUsed" = "server2" ]; then
-    copyDir="server2"
-    runDir="server"
-fi
-
-retries=0
-while [ $retries -lt 3 ]; do
-    # Start the application
-    echo "Starting ord server..."
-    ord --bitcoin-rpc-url bitcoin-container:8332 --bitcoin-rpc-username mempool --bitcoin-rpc-password mempool --data-dir /root/.local/share/ord/$runDir server --http-port 8080 &>/dev/stdout &
-
-    # Sleep for a few seconds to allow the server to start up
-    sleep 5
-
-    # Check if the application started successfully (assuming it outputs a specific success message, adjust as needed)
-    if ! pgrep -x "ord" > /dev/null; then
-        retries=$((retries+1))
-        echo "Attempt $retries failed. Retrying in ${retries} minute(s)..."
-        sleep $((retries*60))
-    else
-        echo "ord server started successfully."
-        # Application started successfully, break out of the loop
-        break
-    fi
-done
-
-# If the server failed to start after retries, exit the script
-if [ $retries -eq 3 ]; then
-    echo "ord server failed to start after 3 attempts. Exiting."
-    exit 1
-fi
-
-# Update "lastUsed.txt" with the directory the server is running from
-echo "Updating lastUsed.txt with $runDir..."
-echo $runDir > /root/.local/share/ord/lastUsed.txt
-if [ $? -eq 0 ]; then
-    echo "lastUsed.txt updated successfully."
-else
-    echo "Failed to update lastUsed.txt."
-fi
-
-# Sleep for a few seconds to allow the server to start up
-sleep 5
-
-# If backup index exists, copy it to the copy directory
-if [ -f /root/.local/share/ord/index.redb ]; then
-    echo "Copying index.redb to $copyDir..."
-    pv /root/.local/share/ord/index.redb > /root/.local/share/ord/$copyDir/index.redb 2>&1
-    if [ $? -eq 0 ]; then
-        echo "Successfully copied index.redb to $copyDir directory."
-    else
-        echo "Failed to copy index.redb to $copyDir directory."
-    fi
-else
-    echo "No backup index.redb found. Not copying."
-fi
-
-# Start the balance check loop in the background
-echo "Starting balance check every 20 minutes..."
-(
-    while true; do
-        # Check if the ord server command is running
-        if ! pgrep -x "ord" > /dev/null; then
-            echo "ord server is not running. Exiting the loop and shutting down the container."
-            kill -9 -1
-            exit 1
-        else
-            echo "ord server is running."
+# Function to stop the Yarn start process
+stop_yarn() {
+    if [ -f "$YARN_PID_FILE" ]; then
+        YARN_PID=$(cat "$YARN_PID_FILE")
+        if kill -0 "$YARN_PID" >/dev/null 2>&1; then
+            echo "Stopping Yarn process with PID $YARN_PID..."
+            kill "$YARN_PID"
+            wait "$YARN_PID"
+            echo "Yarn process stopped."
         fi
+    fi
+}
 
-        if ! pgrep -x "pv" > /dev/null; then
-            echo "Checking wallet balance using main index.redb..."
-            ord --bitcoin-rpc-url bitcoin-container:8332 --bitcoin-rpc-username mempool --bitcoin-rpc-password mempool index update
-            if [ $? -eq 0 ]; then
-                echo "Successfully checked wallet balance using main index.redb."
-            else
-                echo "Failed to check wallet balance using main index.redb."
-            fi
-
-            echo "Checking wallet balance using index.redb not being used as server..."
-            ord --bitcoin-rpc-url bitcoin-container:8332 --bitcoin-rpc-username mempool --bitcoin-rpc-password mempool --data-dir /root/.local/share/ord/$copyDir index update
-            if [ $? -eq 0 ]; then
-                echo "Successfully checked wallet balance using index.redb not being used as server."
-            else
-                echo "Failed to check wallet balance using index.redb not being used as server."
-            fi
-        else
-            echo "Index update already in progress."
-        fi
-        sleep 1200
+# Function to wait for any ord process to stop
+wait_for_ord_stop() {
+    echo "Waiting for ord process to stop..."
+    while pgrep -f ord >/dev/null; do
+        sleep 5
     done
-) &
+    echo "ord process stopped."
+}
 
-# Keep the script running by tailing a log file or any other approach
+# Function to perform the backup
+backup_index() {
+    echo "Starting backup of index.redb to $BACKUP_FILE..."
+    cp "$INDEX_FILE" "$BACKUP_FILE"
+    if [ $? -eq 0 ]; then
+        echo "Backup completed successfully."
+    else
+        echo "Error: Backup failed."
+        exit 1
+    fi
+}
+
+# Function to start the Yarn process
+start_yarn() {
+    echo "Starting Yarn..."
+    cd /app/indexer
+    yarn start &
+    echo $! > "$YARN_PID_FILE"
+    echo "Yarn process started with PID $(cat $YARN_PID_FILE)."
+}
+
+# Main script logic
+# Backup and restart logic is only executed once a day at 11 AM IST
+CURRENT_HOUR=$(date +"%H")
+CURRENT_MINUTE=$(date +"%M")
+
+if [ "$CURRENT_HOUR" -eq "05" ] && [ "$CURRENT_MINUTE" -ge "30" ] && [ "$CURRENT_MINUTE" -lt "31" ]; then
+    stop_yarn
+    wait_for_ord_stop
+    backup_index
+fi
+
+start_yarn
+
+# Keep the container alive after Yarn starts
 tail -f /dev/null
