@@ -28,16 +28,26 @@ jobs:
           key: ${{ runner.os }}-buildx-${{ github.sha }}
           restore-keys: |
             ${{ runner.os }}-buildx-
-              
-      - name: Build ordapi image
-        run: |
-          docker build \
-            -t ${{ env.IMAGE_NAME }} . \
-            --build-arg MONGODB_URI=${{ secrets.MONGODB_URI }}
 
-      - name: Log in to Docker registry
-        run: docker login -u crypticmetadev -p ${{ secrets.DOCKERHUB_TOKEN }}
+      - name: Login to DockerHub
+        uses: docker/login-action@v1
+        with:
+          username: crypticmetadev
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Push image to Docker registry
+      - name: Build and push
+        uses: docker/build-push-action@v2
+        with:
+          context: .
+          push: true
+          tags: ${{ env.IMAGE_NAME }}
+          build-args: |
+            MONGODB_URI=${{ secrets.MONGODB_URI }}
+          cache-from: type=local,src=/tmp/.buildx-cache
+          cache-to: type=local,dest=/tmp/.buildx-cache-new
+      
+
+      - name: Move cache
         run: |
-          docker push ${{ env.IMAGE_NAME }}
+          rm -rf /tmp/.buildx-cache
+          mv /tmp/.buildx-cache-new /tmp/.buildx-cache
