@@ -14,6 +14,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       BRANCH_NAME: ${GITHUB_REF##*/}
+      IMAGE_NAME: crypticmetadev/ordapi:${GITHUB_REF##*/}
 
     steps:
       - name: Checkout code
@@ -37,7 +38,7 @@ jobs:
 
       - name: Build ordapi image
         run: |
-          docker build -t ${{ env.BASE_IMAGE_NAME }}:${{ env.SANITIZED_BRANCH_NAME }} . \
+          docker build -t ${{ env.BASE_IMAGE_NAME }} . \
             --build-arg MONGODB_URI=${{ secrets.MONGODB_URI }}
 
       - name: Log in to Docker registry
@@ -45,6 +46,7 @@ jobs:
 
       - name: Push image to Docker registry
         run: |
-          docker push ${BASE_IMAGE_NAME}:${SANITIZED_BRANCH_NAME}
+          BRANCH_NAME=${GITHUB_REF##*/}
+          docker push ${BASE_IMAGE_NAME}:${BRANCH_NAME}
         env:
           BASE_IMAGE_NAME: crypticmetadev/ordapi
