@@ -33,10 +33,8 @@ jobs:
 
       - name: Build ordapi image
         run: |
-          docker build \
-            --build-arg MONGODB_URI=${{ secrets.MONGODB_URI }} \
-            -t ${{ env.IMAGE_NAME }} \
-            .
+          docker build -t ${{ env.IMAGE_NAME }} . \
+            --build-arg MONGODB_URI=${{ secrets.MONGODB_URI }} 
 
       - name: Log in to Docker registry
         run: docker login -u crypticmetadev -p ${{ secrets.DOCKERHUB_TOKEN }}
