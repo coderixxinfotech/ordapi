@@ -13,9 +13,7 @@ jobs:
   build-and-push-backend:
     runs-on: ubuntu-latest
     env:
-      # Sanitize BRANCH_NAME to ensure it only contains valid characters
-      BRANCH_NAME: ${{ github.ref_name | replace('refs/heads/', '') | replace('/', '-') | toLower }}
-      IMAGE_NAME: crypticmetadev/ordapi:${{ env.BRANCH_NAME }}
+      BRANCH_NAME: ${GITHUB_REF##*/}
 
     steps:
       - name: Checkout code
@@ -32,14 +30,21 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-buildx-
 
+      - name: Sanitize Branch Name
+        run: |
+          SANITIZED_BRANCH_NAME=$(echo "${BRANCH_NAME}" | sed 's/[\/]/-/g')
+          echo "SANITIZED_BRANCH_NAME=${SANITIZED_BRANCH_NAME}" >> $GITHUB_ENV
+
       - name: Build ordapi image
         run: |
-          docker build -t ${{ env.IMAGE_NAME }} . \
-            --build-arg MONGODB_URI=${{ secrets.MONGODB_URI }} 
+          docker build -t ${{ env.BASE_IMAGE_NAME }}:${{ env.SANITIZED_BRANCH_NAME }} . \
+            --build-arg MONGODB_URI=${{ secrets.MONGODB_URI }}
 
       - name: Log in to Docker registry
         run: docker login -u crypticmetadev -p ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Push image to Docker registry
         run: |
-          docker push ${{ env.IMAGE_NAME }}
+          docker push ${BASE_IMAGE_NAME}:${SANITIZED_BRANCH_NAME}
+        env:
+          BASE_IMAGE_NAME: crypticmetadev/ordapi
