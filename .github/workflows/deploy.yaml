@@ -45,4 +45,5 @@ jobs:
 
       - name: Push image to Docker registry
         run: |
-          docker push ${{ env.BASE_IMAGE_NAME }}:${{ env.BRANCH_NAME }}
+          docker push ${{ env.IMAGE_NAME }}
+
