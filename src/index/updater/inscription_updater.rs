@@ -477,7 +477,7 @@ fn write_to_file(&mut self, to_write: String, flush: bool) -> Result {
     let mut inscriptions = INSCRIPTIONS.lock().unwrap();
     if inscriptions.as_ref().is_none() {
       let chain_folder: String = match self.chain {
-        Chain::Mainnet => String::from(""),
+        Chain::Mainnet => String::from("mainnet/"),
         Chain::Testnet => String::from("testnet3/"),
         Chain::Signet => String::from("signet/"),
         Chain::Regtest => String::from("regtest/"),

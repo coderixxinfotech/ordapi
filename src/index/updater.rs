@@ -316,21 +316,18 @@ impl<'index> Updater<'index> {
     lazy_static! {
       static ref LOG_FILE: Mutex<Option<File>> = Mutex::new(None);
     }
+
     let mut log_file = LOG_FILE.lock().unwrap();
     if log_file.as_ref().is_none() {
-      // let chain_folder: String = match self.index.options.chain() {
-      //   Chain::Mainnet => String::from(""),
-      //   Chain::Testnet => String::from("testnet3/"),
-      //   Chain::Signet => String::from("signet/"),
-      //   Chain::Regtest => String::from("regtest/"),
-      // };
-      *log_file = Some(
-        File::options()
-          .append(true)
-          .open(format!("log_file_index.txt"))
-          .unwrap(),
-      );
+      let current_dir = env::current_dir().unwrap();
+      let log_file_path = current_dir.join("mainnet/log_file_index.txt");
+
+      // Log the full path
+      println!("Attempting to open log file at path: {:?}", log_file_path);
+
+      *log_file = Some(File::options().append(true).open(&log_file_path).unwrap());
     }
+
     println!(
       "cmd;{0};new_block;{1}",
       self.height,

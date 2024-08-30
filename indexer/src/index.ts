@@ -2,7 +2,7 @@
 // to run: node --max-old-space-size=8192 ./index.ts
 
 // NOTE: there is a possibility that if json contains \u0000, it'll be saved into text_content not content (jsonb)
-
+const LIMIT = 1;
 import dotenv from 'dotenv';
 dotenv.config();
 
@@ -45,7 +45,8 @@ if (ord_folder.length == 0) {
 }
 if (ord_folder[ord_folder.length - 1] != '/') ord_folder += '/';
 
-const ord_datadir: string = process.env.ORD_DATADIR || ".";
+
+const ord_datadir: string = process.env.ORD_DATADIR || "./mainnet";
 const cookie_file: string = process.env.COOKIE_FILE || "";
 
 const network_type: string = process.env.NETWORK_TYPE || "mainnet";
@@ -53,10 +54,11 @@ const network_type: string = process.env.NETWORK_TYPE || "mainnet";
 let network: bitcoin.Network | null = null;
 let network_folder: string = "";
 
+
 switch (network_type) {
   case "mainnet":
     network = bitcoin.networks.bitcoin;
-    network_folder = "";
+    network_folder = "mainnet/";
     break;
   case "testnet":
     network = bitcoin.networks.testnet;
@@ -94,6 +96,8 @@ const INDEXER_VERSION = 1;
 const ORD_VERSION = "0.18.5";
 
 import mempoolJS from "cryptic-mempool";
+import { handlePreSaveLogic, InsertSkippedBlock } from './insertSkippedBlock';
+import axios from 'axios';
 
 export function delay(sec: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, sec * 1000));
@@ -105,6 +109,8 @@ function save_error_log(log: string): void {
 }
 
 async function main_index() {
+
+console.log(execSync("pwd", { stdio: 'inherit' }))
   await check_db()
 
   let first = true;
@@ -114,9 +120,9 @@ async function main_index() {
 
     let start_tm = +(new Date())
 
-    if (!fs.existsSync(ord_folder + network_folder + "log_file.txt")) {
-      console.error("log_file.txt not found, creating")
-      fs.writeFileSync(ord_folder + network_folder + "log_file.txt", '')
+    if (!fs.existsSync(ord_folder + network_folder + "inscriptions.txt")) {
+      console.error("inscriptions.txt not found, creating in: "+ord_folder + network_folder + "inscriptions.txt")
+      fs.writeFileSync(ord_folder + network_folder + "inscriptions.txt", '')
     }
     if (!fs.existsSync(ord_folder + network_folder + "log_file_index.txt")) {
       console.error("log_file_index.txt not found, creating")
@@ -137,9 +143,9 @@ async function main_index() {
     }
 
     let ord_index_st_tm = +(new Date())
-    let ord_end_block_height = ord_last_block_height + 5
+    let ord_end_block_height = ord_last_block_height + LIMIT
     if (ord_last_block_height < fast_index_below) { // a random point where blocks start to get more inscription
-      ord_end_block_height = ord_last_block_height + 5
+      ord_end_block_height = ord_last_block_height + LIMIT
     }
 
      console.log({ord_last_block_height, first_inscription_height})
@@ -202,18 +208,34 @@ async function main_index() {
     for await (const line of rl) {
       lines.push(line)
     }
-    let lines_index = fs.readFileSync(ord_folder + network_folder + "log_file_index.txt", "utf8").split('\n')
-    if (lines_index.length == 1) {
-      console.log("Nothing new, waiting!!")
-      return;
-    }
+
 
     const currentHeightResult = await BlockHashes.aggregate([
       { $group: { _id: null, max_height: { $max: "$block_height" } } }
     ]);
 
     let current_height = currentHeightResult.length > 0 ? currentHeightResult[0].max_height : -1;
-    await checkReorg(lines_index, current_height);
+
+
+
+    let lines_index = fs.readFileSync(ord_folder + network_folder + "log_file_index.txt", "utf8").split('\n')
+    if (lines_index.length == 1) {
+      console.log("Nothing new, waiting!!")
+
+      // check latest mempool height and latest height in our db to find if we skipped some blocks
+      const {data: mempool_height} = await axios.get(`https://mempool.ordinalnovus.com/api/blocks/tip/height`);
+      if(mempool_height > current_height)
+      {
+        console.log({current_height})
+         console.log(`We are ${mempool_height-current_height}  Blocks Behind`);
+         await InsertSkippedBlock(current_height+1);
+         main_index()
+
+      }
+      return;
+    }
+
+        await checkReorg(lines_index, current_height);
     console.log("No reorg found: ", {current_height})
 
 
@@ -539,103 +561,7 @@ async function main_index() {
 
     console.log("handling cleanup..")
 
-  const shaMap: { [sha: string]: number } = {};
-  // Pre-compute the maximum existing version for each unique SHA
-  const uniqueShas = [
-    ...new Set(insertOps.map((doc:any) => doc.updateOne.update.$set.sha)),
-  ];
-
- 
-  const latestDocumentsWithSameShas = await Inscription.aggregate([
-  {
-    $match: {
-      sha: { $in: uniqueShas },
-    },
-  },
-  {
-    $sort: { sha: 1, version: -1 }, // Sort by sha and then by version descending
-  },
-  {
-    $group: {
-      _id: "$sha", // Group by sha
-      doc: { $first: "$$ROOT" }, // Get the first document in each group (i.e., the one with the highest version)
-    },
-  },
-  {
-    $replaceRoot: { newRoot: "$doc" }, // Replace the root with the document itself
-  },
-]);
-
-  console.log(`total unique shas... ${uniqueShas.length}`)
-  console.log('total docs found in db with same sha...', latestDocumentsWithSameShas.length)
-  for (const sha of uniqueShas) {
-    if (sha) {
-      const latestDocumentWithSameShaMatch = latestDocumentsWithSameShas.filter(a=>a.sha === sha);
-
-      if(latestDocumentWithSameShaMatch.length>1){
-        throw Error("Multiple docs with same sha received");
-      }
-      const latestDocumentWithSameSha = latestDocumentWithSameShaMatch[0]
-      //@ts-ignore
-      shaMap[sha] = latestDocumentWithSameSha
-        ? latestDocumentWithSameSha.version
-        : 0;
-    }
-  }
-  let transformedBulkOps = [];
-
-  for (let i = 0; i < insertOps.length; i++) {
-    // if(i%1000==0){
-    //   await delay(2)
-    // }
-    // console.log("processing item: ",i)
-    let bulkDoc = { ...insertOps[i] };
-    const updateOne = bulkDoc.updateOne;
-    const doc = updateOne.update.$set;
-
-    // Updated SHA version logic with the new one in cronjob sha-fix
-  //   if (doc.sha && !doc.token) {
-  //     if (shaMap[doc.sha] != null) {
-  //       shaMap[doc.sha]++;
-  //     } else {
-  //       shaMap[doc.sha] = 1;
-  //     }
-  //     // @ts-ignore
-  //     doc.version = shaMap[doc.sha];
-  //   }
-  //  if (i === 0 && doc.inscription_number > 0) {
-  //     const prevDocument = await Inscription.findOne({
-  //       inscription_number: doc.inscription_number - 1,
-  //     });
-
-  //     if (!prevDocument || !prevDocument.inscription_id) {
-  //       throw new Error(
-  //         `1) A document with number ${
-  //           doc.inscription_number - 1
-  //         } does not exist or inscriptionId is missing in it`
-  //       );
-  //     }
-  //   }
-
-    if (doc.content_type && doc.content_type.includes("/")) {
-      const contentTypeParts = doc.content_type.split("/");
-      doc.tags = doc.tags
-        ? [
-            ...doc.tags
-              .filter((tag: string) => tag)
-              .map((tag: string) => tag.toLowerCase()),
-            ...contentTypeParts
-              .filter((part: string) => part)
-              .map((part: string) => part.toLowerCase()),
-          ]
-        : contentTypeParts
-            .filter((part: string) => part)
-            .map((part: string) => part.toLowerCase());
-    }
-
-    transformedBulkOps.push(doc);
-  }
-
+    const transformedBulkOps = await handlePreSaveLogic(insertOps)
   console.log("cleanup done.")
 
 
@@ -782,15 +708,51 @@ const init = async () => {
     const connectWebSocket = () => {
       const ws = websocket.wsInit();
 
-      ws.addEventListener("message", async function incoming({ data }: any) {
-        data = JSON.parse(data.toString());
-        if (data.block) {
-          blockQueue.push(data);
-          if (blockQueue.length === 1) {
-            processQueue();
-          }
-        }
+     
+      // Event listener for incoming WebSocket messages
+ws.addEventListener("message", async function incoming({ data }: any) {
+  // Parse the incoming data as JSON
+  data = JSON.parse(data.toString());
+
+  // Check if the data contains a block
+  if (data.block) {
+    // Connect to the database
+    await dbConnect();
+
+    // Get the current block height from the database
+    const currentHeightResult = await BlockHashes.aggregate([
+      { $group: { _id: null, max_height: { $max: "$block_height" } } }
+    ]);
+
+    // Set the current block height, or -1 if no blocks are found
+    let current_height = currentHeightResult.length > 0 ? currentHeightResult[0].max_height : -1;
+
+    // Fetch the current block height from the mempool API
+    const { data: mempool_height } = await axios.get(`https://mempool.ordinalnovus.com/api/blocks/tip/height`);
+
+    // If the mempool height is greater than the current height, process the difference
+    if (mempool_height > current_height) {
+      console.log({ diff: mempool_height - current_height, queue: blockQueue.length });
+
+      // Calculate the number of blocks that need to be processed
+      const diff = mempool_height - current_height;
+
+      // Log the number of blocks that are behind
+      console.log(`We are ${diff} Blocks Behind`);
+
+      // Push the required number of blocks into the blockQueue
+      new Array(Math.ceil(diff / LIMIT)).fill(1).forEach(() => {
+        blockQueue.push(data);
       });
+    }
+
+    // If this is the first block in the queue, start processing
+    if (blockQueue.length === 1) {
+      processQueue();
+    }
+  }
+});
+
 
       const reconnectWebSocket = (attempt = 1) => {
         const delay = Math.min(60000, attempt * 5000 + Math.random() * 5000);
@@ -972,7 +934,7 @@ async function check_db(): Promise<void> {
 
 
 
-// main_index()
+main_index()
 init()
 
 enum Charm {

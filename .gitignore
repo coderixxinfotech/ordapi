@@ -20,3 +20,4 @@
 /indexer/.env.local
 /indexer/node_modules
 /indexer/dist
+/indexer/mainnet
