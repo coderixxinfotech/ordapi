@@ -30,10 +30,13 @@ jobs:
           key: ${{ runner.os }}-buildx-${{ github.sha }}
           restore-keys: |
             ${{ runner.os }}-buildx-
+
       - name: Build ordapi image
         run: |
           docker build \
+            --build-arg MONGODB_URI=${{ secrets.MONGODB_URI }} \
             -t ${{ env.IMAGE_NAME }} .
+
       - name: Log in to Docker registry
         run: docker login -u crypticmetadev -p ${{ secrets.DOCKERHUB_TOKEN }}
 

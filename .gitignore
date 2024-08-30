@@ -17,3 +17,6 @@
 /indexer/index.redb
 /indexer/log_file.txt
 /indexer/log_file_index.txt
+/indexer/.env.local
+/indexer/node_modules
+/indexer/dist

@@ -1,8 +1,8 @@
 #!/bin/bash
 
 # Define variables
-INDEX_FILE="/root/.local/share/ord/index.redb"
-BACKUP_DIR="/root/.local/share/ord/backup"
+INDEX_FILE="/app/indexer/index.redb"
+BACKUP_DIR="/app/indexer/backup"
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
 BACKUP_FILE="$BACKUP_DIR/index.redb.$TIMESTAMP"
 YARN_PID_FILE="/var/run/yarn.pid"

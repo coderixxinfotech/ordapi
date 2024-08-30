@@ -1,8 +1,12 @@
 # Use the official Ubuntu image as a base image
 FROM ubuntu:latest AS build
 
+# Set up an argument for MONGODB_URI
+ARG MONGODB_URI
+
 # Set environment variables and work directory
 ENV HOME /app
+ENV MONGODB_URI=${MONGODB_URI}
 WORKDIR /app
 
 # Update the system and install necessary dependencies
@@ -41,19 +45,18 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy the ord program from the build stage
-COPY --from=build /app/target/release /app
+COPY --from=build /app/target/release/ord /app/ord
 
 # Add a startup script and change permissions while still root
 COPY start.sh /start.sh
-COPY healthcheck.sh /usr/local/bin/healthcheck.sh
 
 RUN chmod +x /start.sh
 
+# Create a directory for Yarn PID file
+RUN mkdir -p /var/run
+
 # Add the directory containing the executable to the PATH
 ENV PATH="/app:${PATH}"
-
-# Expose port 8080
-EXPOSE 8080
 
 # Set the CMD instruction with additional flags
 ENTRYPOINT ["/start.sh"]
