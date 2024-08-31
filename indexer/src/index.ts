@@ -699,6 +699,7 @@ const init = async () => {
     const processQueue = async () => {
       while (blockQueue.length > 0) {
         // const blockData = blockQueue.shift();
+        console.log(`need to process ${blockQueue.length-1} more times. ID: ${blockQueue.length}`)
         console.log(`${blockQueue.length} items in Queue`)
         await main_index();
       }
@@ -737,13 +738,14 @@ ws.addEventListener("message", async function incoming({ data }: any) {
       // Calculate the number of blocks that need to be processed
       const diff = mempool_height - current_height;
 
-      // Log the number of blocks that are behind
-      console.log(`We are ${diff} Blocks Behind`);
-
       // Push the required number of blocks into the blockQueue
       new Array(Math.ceil(diff / LIMIT)).fill(1).forEach(() => {
         blockQueue.push(data);
       });
+
+
+      // Log the number of blocks that are behind
+      console.log(`We are ${diff} Blocks Behind and number of times it will be processed: ${blockQueue.length}`);
     }
 
     // If this is the first block in the queue, start processing
