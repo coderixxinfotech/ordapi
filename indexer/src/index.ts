@@ -228,8 +228,11 @@ console.log(execSync("pwd", { stdio: 'inherit' }))
       {
         console.log({current_height})
          console.log(`We are ${mempool_height-current_height}  Blocks Behind`);
-         await InsertSkippedBlock(current_height+1);
-         main_index()
+         for(let i = current_height + 1; i<=mempool_height; i++){
+          await InsertSkippedBlock(i);
+
+         }
+         await cleanup()
 
       }
       return;

@@ -108,7 +108,7 @@ if(data.inscriptions.length){
 
   
 
-await cleanup()
+// await cleanup()
 
  }
  catch(e: any){
