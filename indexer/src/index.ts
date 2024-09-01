@@ -1244,55 +1244,74 @@ const handle_reorg = async (block_height: number): Promise<void> => {
   }
 };
 
+import dbConnect from "./lib/dbConnect";
+import { Inscription } from "./models";
+
 export async function cleanup(block?: number) {
+  await dbConnect();
+  console.log("starting cleanup");
+  const fieldsToCheck = [
+    "children",
+    "lists",
+    "tags",
+    "charms_array",
+    "parsed_metaprotocol",
+    "attributes",
+    "delegate",
+    "metaprotocol",
+    "metadata",
+    "sha",
+    "location",
+    "output",
+    "address",
+    "content",
+    "content_type",
+  ];
 
+  const query = {
+    $or: [
+      { lists: [] },
+      { children: [] },
+      { tags: { $in: [null, []] } }, // Only check for null or empty array
+      { charms_array: { $in: [null, []] } },
+      { parsed_metaprotocol: { $in: [null, []] } },
+      { attributes: { $in: [null, []] } },
+      { delegate: { $in: [null, ""] } }, // Check for null or empty string
+      { metaprotocol: { $in: [null, ""] } },
+      { metadata: { $in: [null, ""] } },
+      { sha: { $in: [null, ""] } },
+      { content_type: { $in: [null, ""] } },
+      { location: { $in: [null, ""] } },
+      { output: { $in: [null, ""] } },
+      { address: { $in: [null, ""] } },
+      { content: { $in: [null, ""] } },
+    ],
+  };
 
+  // Construct the $set pipeline stage to remove falsy values
+  const setQuery = fieldsToCheck.reduce((set, field) => {
+    //@ts-ignore
+    set[field] = {
+      $cond: {
+        if: { $in: [`$${field}`, [null, [], ""]] },
+        then: "$$REMOVE",
+        else: `$${field}`,
+      },
+    };
+    return set;
+  }, {});
 
-    const fieldsToCheck = [
-   "children", "lists", "tags", "charms_array", "parsed_metaprotocol", 
-  "attributes", "delegate", "metaprotocol", "metadata", "sha", 
-   "location", "output", "address",
-  "content", "content_type"
-];
+  console.log("Finding documents to update...");
+  const documentsToUpdate = await Inscription.find(
+    block ? { genesis_height: block } : query
+  ).limit(10);
 
-const query = {
-  '$or': [
-     { lists: []  }, 
-     { children: [] }, 
-    { tags: { '$in': [null, []] } },  // Only check for null or empty array
-    { charms_array: { '$in': [null, []] } },
-    { parsed_metaprotocol: { '$in': [null, []] } },
-    { attributes: { '$in': [null, []] } },
-    { delegate: { '$in': [null, ''] } },  // Check for null or empty string
-    { metaprotocol: { '$in': [null, ''] } },
-    { metadata: { '$in': [null, ''] } },
-    { sha: { '$in': [null, ''] } },
-    { content_type: { '$in': [null, ''] } },
-    { location: { '$in': [null, ''] } },
-    { output: { '$in': [null, ''] } },
-    { address: { '$in': [null, ''] } },
-    { content: { '$in': [null, ''] } },
-  ]
-}
+  console.log("Updating documents...");
+  const updatePromises = documentsToUpdate.map(doc => 
+    Inscription.updateOne({ _id: doc._id }, [{ $set: setQuery }])
+  );
+  
+  const result = await Promise.all(updatePromises);
 
-
-// Construct the $set pipeline stage to remove falsy values
-const setQuery = fieldsToCheck.reduce((set, field) => {
-  //@ts-ignore
-  set[field] = { $cond: { if: { $in: [`$${field}`, [null, [], ""]] }, then: "$$REMOVE", else: `$${field}` } };
-  return set;
-}, {});
-
-  // console.dir(setQuery, {depth: null})
-//   const result = await Inscription.find(
-//  query
-// );
-const result = await Inscription.updateMany(
-  block?{genesis_height: block}:query,
-  [
-    { $set: setQuery }
-  ]
-).limit(100000);
-
-console.log({result})
+  console.log({ result });
 }
