@@ -2,7 +2,6 @@ import dbConnect from "./lib/dbConnect"
 import { BlockHashes, Inscription } from "./models";
 import axios from 'axios';
 import fetchContentFromProviders, { fetchInscriptionDetails } from "./utils";
-import { cleanup } from ".";
 import crypto from "crypto"
 
 export async function InsertSkippedBlock(block: number){

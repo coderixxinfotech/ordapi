@@ -16,18 +16,6 @@ interface IBlockHashes extends Document {
   blockhash: string;
 }
 
-interface IOrdTransfers extends Document {
-  block_height: number;
-}
-
-interface IOrdNumberToId extends Document {
-  block_height: number;
-}
-
-interface IOrdContent extends Document {
-  block_height: number;
-}
-
 // Define the schema for the ReorgStat collection
 const ReorgStatSchema = new Schema({
   reorg_tm: {
@@ -67,50 +55,16 @@ const BlockHashesSchema: Schema = new Schema({
   blockhash:{type: String, required: true}
 });
 
-const OrdTransfersSchema = new Schema({
-    txid: { type: String, required: true, unique: true },
-    block_height: { type: Number, required: true },
-    timestamp: { type: Date, required: true },
-    old_output: { type: String, required: true },
-    new_output: { type: String, required: true },
-    new_location: { type: String, required: true },
-    new_output_value: { type: Number, required: true },
-    to: { type: String, required: true }
-});
 
-const OrdNumberToIdSchema: Schema = new Schema({
-  block_height: { type: Number, required: true }
-});
-
-const OrdContentSchema: Schema = new Schema({
-  block_height: { type: Number, required: true }
-});
-
-
-// Define the schema and model for ord_transfer_counts
-interface IOrdTransferCount extends mongoose.Document {
-  event_type: string;
-  max_transfer_cnt: number;
-}
-
-const OrdTransferCountSchema = new mongoose.Schema({
-  event_type: { type: String, required: true },
-  max_transfer_cnt: { type: Number, required: true },
-});
-
-const OrdTransferCount = mongoose.model<IOrdTransferCount>('OrdTransferCount', OrdTransferCountSchema);
 
 
 const OrdIndexerVersion = mongoose.model<IOrdIndexerVersion>('OrdIndexerVersion', OrdIndexerVersionSchema);
 const OrdNetworkType = mongoose.model<IOrdNetworkType>('OrdNetworkType', OrdNetworkTypeSchema);
 const BlockHashes = mongoose.model<IBlockHashes>('BlockHashes', BlockHashesSchema);
-const OrdTransfers = mongoose.model<IOrdTransfers>('OrdTransfers', OrdTransfersSchema);
-const OrdNumberToId = mongoose.model<IOrdNumberToId>('OrdNumberToId', OrdNumberToIdSchema);
-const OrdContent = mongoose.model<IOrdContent>('OrdContent', OrdContentSchema);
 const Inscription =
   models.Inscription || model("Inscription", inscriptionSchema);
 
 // Create the ReorgStat model using the schema
 const ReorgStat = mongoose.model('ReorgStat', ReorgStatSchema);
 
-export {OrdIndexerVersion, OrdNetworkType, BlockHashes, OrdTransfers, OrdTransferCount, OrdNumberToId, OrdContent, Inscription, ReorgStat}
+export {OrdIndexerVersion, OrdNetworkType, BlockHashes, Inscription, ReorgStat}
