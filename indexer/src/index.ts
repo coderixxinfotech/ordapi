@@ -556,6 +556,7 @@ console.log(execSync("pwd", { stdio: 'inherit' }))
     const uniqueTransferOps = Array.from(uniqueOps.values());
     console.log(`writing ${uniqueTransferOps.length} unique transfer ops...`)
 
+    await dbConnect()
     await Inscription.bulkWrite(uniqueTransferOps);
 
 
