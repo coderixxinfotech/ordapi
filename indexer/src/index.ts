@@ -1248,6 +1248,10 @@ const handle_reorg = async (block_height: number): Promise<void> => {
 export async function cleanup(block?: number) {
   await dbConnect();
   console.log("starting cleanup");
+
+  // Start time
+  console.time("cleanupOperation");
+
   const fieldsToCheck = [
     "children",
     "lists",
@@ -1331,12 +1335,14 @@ export async function cleanup(block?: number) {
   ];
 
   console.log("Finding and preparing bulk operations...");
+  console.time("findOperation");
   const documentsToUpdate = await Inscription.find(
     block ? { genesis_height: block } : query
   )
     .sort({ inscription_number: -1 })
-    .limit(100000); // High limit, as per your requirement
+    .limit(10000); // High limit, as per your requirement
 
+  console.timeEnd("findOperation");
   const bulkOps = documentsToUpdate.map((doc) => ({
     updateOne: {
       filter: { _id: doc._id },
@@ -1351,4 +1357,7 @@ export async function cleanup(block?: number) {
   } else {
     console.log("No documents to update.");
   }
+
+  // End time
+  console.timeEnd("cleanupOperation");
 }
