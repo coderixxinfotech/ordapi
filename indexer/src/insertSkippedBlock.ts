@@ -263,11 +263,9 @@ const processInscription = async (inscription_id: string, bulkOps: any) => {
     /image|audio|zip|video/.test(contentType)
       ? {}
       : { content: truncatedContent }),
-    // ...(sha &&
-    //   (!inscriptionDetails.metaprotocol ||
-    //     !inscriptionDetails.metaprotocol.includes("transfer")) && {
-    //     sha,
-    //   }),
+    ...(!token && sha && {
+        sha,
+      }),
     ...(token && { token }),
     tags,
     ...inscriptionDetails,
@@ -383,6 +381,11 @@ export const handlePreSaveLogic = async (bulkDocs: Array<Partial<any>>) => {
     //   doc.version = shaMap[doc.sha];
     // }
 
+    if(doc.sha && doc.token){
+      doc.sha = null;
+      doc.content = null;
+    }
+
     if (doc.content_type && doc.content_type.includes("/")) {
       const contentTypeParts = doc.content_type.split("/");
       doc.tags = doc.tags
@@ -400,6 +403,8 @@ export const handlePreSaveLogic = async (bulkDocs: Array<Partial<any>>) => {
     }
     transformedBulkOps.push(doc);
   }
+
+  
 
   // console.debug(shaMap, "SHAMAP");
   return transformedBulkOps;
