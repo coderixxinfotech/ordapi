@@ -37,6 +37,7 @@ async function dbConnect() {
   if (cached.conn) console.log("connected to DB");
   else {
     console.log("didnt connect");
+    throw Error("db not connected")
   }
   return cached.conn;
 }
