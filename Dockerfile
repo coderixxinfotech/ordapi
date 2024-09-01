@@ -35,15 +35,8 @@ RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y \
     && . $HOME/.cargo/env \
     && cargo build --release
 
-# Navigate to the indexer directory and run yarn
+# Install dependencies
 RUN cd /app/indexer && yarn install
 
-# Add a startup script and change permissions while still root
-COPY start.sh /start.sh
-RUN chmod +x /start.sh
-
-# Add the directory containing the executable to the PATH
-ENV PATH="/app:${PATH}"
-
-# Set the CMD instruction with additional flags
-ENTRYPOINT ["/start.sh"]
+# Set the CMD instruction to navigate to indexer and start the application
+CMD ["bash", "-c", "cd /app/indexer && yarn start"]
