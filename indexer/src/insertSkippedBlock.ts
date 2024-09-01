@@ -2,6 +2,7 @@ import dbConnect from "./lib/dbConnect"
 import { BlockHashes, Inscription } from "./models";
 import axios from 'axios';
 import fetchContentFromProviders, { fetchInscriptionDetails } from "./utils";
+import { cleanup } from ".";
 
 export async function InsertSkippedBlock(block: number){
  try{
@@ -106,7 +107,7 @@ if(data.inscriptions.length){
 
   
 
-
+await cleanup()
 
  }
  catch(e: any){
