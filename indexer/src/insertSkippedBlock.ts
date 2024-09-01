@@ -349,8 +349,9 @@ export const handlePreSaveLogic = async (bulkDocs: Array<Partial<any>>) => {
       });
 
       if (!prevDocument || !prevDocument.inscription_id) {
-        await BlockHashes.deleteOne({block_height: prevDocument.genesis_height - 1});
-        await Inscription.deleteMany({genesis_height: prevDocument.genesis_height - 1})
+        await BlockHashes.deleteOne({block_height: doc.genesis_height - 1});
+        await Inscription.deleteMany({genesis_height: doc.genesis_height - 1})
+        await InsertSkippedBlock(doc.genesis_height - 1)
         throw new Error(
           `1) A document with number ${
             doc.inscription_number - 1
