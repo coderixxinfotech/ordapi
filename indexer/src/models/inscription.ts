@@ -45,22 +45,22 @@ export const inscriptionSchema = new mongoose.Schema(
     timestamp: {
       type: Date,
     },
-    // children: { type: Array },
-    // next: { type: String },
-    // previous: { type: String },
-    parent: { type: String },
+     delegate: { type: String },
+    children: { type: Array }, //remove
+    next: { type: String }, //remove
+    previous: { type: String }, //remove
+    parent: { type: String }, // should be an array
 
-    delegate: { type: String },
-    // genesis_address: { type: String },
-    // genesis_fee: { type: Number },
+    genesis_address: { type: String }, // remove
+    genesis_fee: { type: Number }, // remove
     genesis_height: { type: Number, index: true },
-    // genesis_transaction: { type: String },
-    // flagged: { type: Boolean },
-    // banned: { type: Boolean },
-    // reason: { type: String },
-    // updated_by: { type: String },
-    // block: { type: Number },
-    content_length: { type: Number },
+    genesis_transaction: { type: String }, // remove
+    flagged: { type: Boolean }, // keep only true values
+    banned: { type: Boolean }, // keep only true value
+    reason: { type: String }, // keep only true values
+    updated_by: { type: String }, // remove
+    block: { type: Number }, // remove
+    content_length: { type: Number }, // remove
     content_type: { type: String },
     // collection detail
     official_collection: {
@@ -70,23 +70,24 @@ export const inscriptionSchema = new mongoose.Schema(
     },
     collection_item_name: { type: String, set: (v: string) => v.trim() },
     collection_item_number: { type: Number },
-    attributes: { type: [attributeSchema] },
+    attributes: { type: [attributeSchema] }, // remove empty values
     // sat details
 
-    // sat_timestamp: {
-    //   type: Date,
-    // },
-    // cycle: { type: Number },
-    // decimal: { type: String },
-    // degree: { type: String },
-    // epoch: { type: Number },
-    // percentile: { type: String },
-    // period: { type: Number },
-    // rarity: { type: String },
-    sat: { type: String },
-    // sat_name: { type: String },
-    // sat_offset: { type: Number },
-    // lists: [{ type: Schema.Types.ObjectId, ref: "Collection" }],
+    sat_timestamp: {
+      // remove
+      type: Date,
+    },
+    cycle: { type: Number }, // remove
+    decimal: { type: String }, // remove
+    degree: { type: String }, // remove
+    epoch: { type: Number }, // remove
+    percentile: { type: String }, // remove
+    period: { type: Number }, // remove
+    rarity: { type: String }, // remove
+    sat: { type: Number },
+    sat_name: { type: String },
+    sat_offset: { type: Number }, // remove
+    lists: [{ type: Schema.Types.ObjectId, ref: "Collection" }], // remove
     tags: {
       type: Array,
       required: false,
@@ -100,19 +101,19 @@ export const inscriptionSchema = new mongoose.Schema(
           `Tags should only contain lowercase letters and hyphens.`,
       },
     },
-    // error: {
-    //   type: Boolean,
-    //   default: false,
-    //   validate: {
-    //     validator: function (this: any, value: boolean) {
-    //       if (value) console.log(this.inscription_id, "error here");
-    //       return !value || (value === true && !!this.error_tag);
-    //     },
-    //     message: 'If "error" is set to true, "error_tag" must be provided.',
-    //   },
-    // },
-    // error_retry: { type: Number, default: 0 },
-    // error_tag: { type: String, default: null },
+    error: {
+      type: Boolean,
+      default: false,
+      validate: {
+        validator: function (this: any, value: boolean) {
+          if (value) console.log(this.inscription_id, "error here");
+          return !value || (value === true && !!this.error_tag);
+        },
+        message: 'If "error" is set to true, "error_tag" must be provided.',
+      },
+    },
+    error_retry: { type: Number, default: 0 },
+    error_tag: { type: String, default: null },
     offset: { type: Number },
     output_value: { type: Number },
     address: {
@@ -165,18 +166,18 @@ export const inscriptionSchema = new mongoose.Schema(
     unsigned_psbt: { type: String },
     in_mempool: { type: Boolean, default: false },
     txid: { type: String },
-    // sat_block_time: { type: Date },
-    // sattributes: [{ type: String }],
-    // last_checked: { type: Date },
+    sat_block_time: { type: Date }, // remove
+    sattributes: [{ type: String }], // remove
+    last_checked: { type: Date }, //remove
     version: { type: Number },
     token: { type: Boolean },
-    // domain_name: { type: String, set: (v: string) => v.trim() },
-    // domain_valid: { type: Boolean },
+    domain_name: { type: String, set: (v: string) => v.trim() }, // remove
+    domain_valid: { type: Boolean }, // remove
 
     // new fields (metadata + metaprotocols)
-    // charms: { type: Number },
+    charms: { type: Number },
     charms_array: { type: [String] },
-    // transfer_valid: { type: Boolean },
+    transfer_valid: { type: Boolean }, // remove
     metaprotocol: { type: String },
     parsed_metaprotocol: {
       type: [String],
@@ -196,7 +197,6 @@ export const inscriptionSchema = new mongoose.Schema(
     valid: { type: Boolean },
   },
   {
-    minimize: true,
     timestamps: { createdAt: "created_at", updatedAt: "updated_at" },
   }
 );
@@ -256,7 +256,3 @@ inscriptionSchema.index(
   { sha: 1, version: 1, inscription_number: 1 },
   { sparse: true }
 );
-
-// custom. temp.
-inscriptionSchema.index({ sha: 1, inscription_number: -1 })
-

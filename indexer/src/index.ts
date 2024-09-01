@@ -1244,8 +1244,6 @@ const handle_reorg = async (block_height: number): Promise<void> => {
   }
 };
 
-import dbConnect from "./lib/dbConnect";
-import { Inscription } from "./models";
 
 export async function cleanup(block?: number) {
   await dbConnect();
@@ -1301,17 +1299,56 @@ export async function cleanup(block?: number) {
     return set;
   }, {});
 
-  console.log("Finding documents to update...");
+  // List of fields you want to remove regardless of their value
+  const fieldsToRemove = [
+    "next", // Replace with actual field names
+    "previous",
+    "children",
+    "genesis_address",
+    "genesis_transaction",
+    "genesis_fee",
+    "block",
+    "content_length",
+    "sat_timestamp",
+    "cycle",
+    "decimal",
+    "epoch",
+    "percentile",
+    "period",
+    // "rarity",
+    // "sat_name",
+    "sat_offset",
+    "error",
+    "error_retry",
+    "error_tag",
+    "offset",
+    "sat_block_time",
+    "charms",
+    "domain_name",
+    "domain_valid",
+    "last_checked",
+    "sattributes",
+  ];
+
+  console.log("Finding and preparing bulk operations...");
   const documentsToUpdate = await Inscription.find(
     block ? { genesis_height: block } : query
-  ).limit(10);
+  )
+    .sort({ inscription_number: -1 })
+    .limit(100000); // High limit, as per your requirement
 
-  console.log("Updating documents...");
-  const updatePromises = documentsToUpdate.map(doc => 
-    Inscription.updateOne({ _id: doc._id }, [{ $set: setQuery }])
-  );
-  
-  const result = await Promise.all(updatePromises);
+  const bulkOps = documentsToUpdate.map((doc) => ({
+    updateOne: {
+      filter: { _id: doc._id },
+      update: [{ $set: setQuery }, { $unset: fieldsToRemove }],
+    },
+  }));
 
-  console.log({ result });
+  if (bulkOps.length > 0) {
+    console.log(`Updating ${bulkOps.length} documents...`);
+    const result = await Inscription.bulkWrite(bulkOps);
+    console.log("Bulk update result:", result);
+  } else {
+    console.log("No documents to update.");
+  }
 }
