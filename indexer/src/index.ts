@@ -881,7 +881,8 @@ async function check_db(): Promise<void> {
   // }
   if (current_height < current_content_height) {
     console.error("current_height < current_content_height");
-    await Inscription.deleteMany({ block_height: { $gt: current_height } });
+    console.log("These docs need to be deleted. ", {current_height})
+    // await Inscription.deleteMany({ block_height: { $gt: current_height } });
   }
 }
 
