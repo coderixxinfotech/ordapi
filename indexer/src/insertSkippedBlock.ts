@@ -3,6 +3,7 @@ import { BlockHashes, Inscription } from "./models";
 import axios from 'axios';
 import fetchContentFromProviders, { fetchInscriptionDetails } from "./utils";
 import { cleanup } from ".";
+import crypto from "crypto"
 
 export async function InsertSkippedBlock(block: number){
  try{
@@ -144,11 +145,6 @@ const processInscription = async (inscription_id: string, bulkOps: any) => {
         content = contentResponse.data;
 
         try {
-          // Check if content is a bitmap pattern (number followed by .bitmap)
-          const bitmapPattern = /^\d+\.bitmap$/;
-          if (bitmapPattern.test(content)) {
-            tags.push("bitmap");
-          }
 
           if (content.startsWith("cbrc-20:")) {
             tags.push("cbrc");
@@ -161,7 +157,14 @@ const processInscription = async (inscription_id: string, bulkOps: any) => {
             tags.push("brc-20");
             tags.push("token");
             token = true;
-          } else if (
+          }
+          else if (
+            parsedContent.p === "sns" ||
+            parsedContent.p.includes("sns")
+          ) {
+            tags.push("token");
+            token = true;
+          }  else if (
             parsedContent.p === "brc-21" ||
             parsedContent.p.includes("orc")
           ) {
@@ -201,17 +204,17 @@ const processInscription = async (inscription_id: string, bulkOps: any) => {
           }
 
         //   if (!token)
-        //     sha = crypto
-        //       .createHash("sha256")
-        //       .update(content, "utf8")
-        //       .digest("hex");
+            sha = crypto
+              .createHash("sha256")
+              .update(content, "utf8")
+              .digest("hex");
         }
       } else if (!token && !/video|audio/.test(contentType)) {
         // if content is not a token or video/audio
-        // sha = crypto
-        //   .createHash("sha256")
-        //   .update(contentResponse.data)
-        //   .digest("hex");
+        sha = crypto
+          .createHash("sha256")
+          .update(contentResponse.data)
+          .digest("hex");
       }
     }
   } catch (e) {}

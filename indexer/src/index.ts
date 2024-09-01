@@ -1131,6 +1131,12 @@ if (delegate_matches) {
             tags.push("token");
             token = true;
           } else if (
+            parsedContent.p === "sns" ||
+            parsedContent.p.includes("sns")
+          ) {
+            tags.push("token");
+            token = true;
+          } else if (
             parsedContent.p === "brc-21" ||
             parsedContent.p.includes("orc")
           ) {
@@ -1187,7 +1193,7 @@ if (delegate_matches) {
     //@ts-ignore
     inscription_details.parsed_metaprotocol = inscription_details?.metaprotocol;
 
-    inscription_details.sha = null;
+    // inscription_details.sha = null;
     inscription_details.content = null;
 
 
