@@ -693,10 +693,12 @@ ws.addEventListener("message", async function incoming({ data }: any) {
       // Calculate the number of blocks that need to be processed
       const diff = mempool_height - current_height;
 
-      // Push the required number of blocks into the blockQueue
-      new Array(Math.ceil(diff / LIMIT)).fill(1).forEach(() => {
-        blockQueue.push(data);
-      });
+      const requiredItems = Math.ceil(diff / LIMIT);
+
+        // Push new items into the blockQueue if there are not enough
+        while (blockQueue.length < requiredItems) {
+          blockQueue.push(data);
+        }
 
 
       // Log the number of blocks that are behind
