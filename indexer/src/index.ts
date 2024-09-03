@@ -34,7 +34,7 @@ process.env["NODE_TLS_REJECT_UNAUTHORIZED"] = "0";
 const chain_folder: string = process.env.BITCOIN_CHAIN_FOLDER || "~/.bitcoin/";
 const bitcoin_rpc_user: string = process.env.BITCOIN_RPC_USER || "mempool";
 const bitcoin_rpc_password: string = process.env.BITCOIN_RPC_PASSWD || "mempool";
-const bitcoin_rpc_url: string = process.env.BITCOIN_RPC_URL || "64.227.138.124:8332";
+const bitcoin_rpc_url: string = process.env.BITCOIN_RPC_URL || "bitcoin-container:8332";
 
 
 let ord_binary: string = process.env.ORD_BINARY || "./../target/release/ord";
