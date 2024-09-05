@@ -23,7 +23,7 @@ export async function InsertSkippedBlock(block: number){
   });
 
   const data = result.data;
-  console.log({data})
+  // console.log({data})
 
 if(data.inscriptions.length){
 
