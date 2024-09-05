@@ -661,19 +661,35 @@ const init = async () => {
       const db_current_inscription_height = await Inscription.findOne({}).sort({inscription_number: -1});
 
       const lower_height = db_current_inscription_height && db_current_height && db_current_inscription_height.genesis_height < db_current_height?.block_height? db_current_inscription_height.genesis_height: db_current_height?.block_height;
-      if(db_current_height && start_height_in_file - db_current_height?.block_height > 1)
-      {
-        console.log({db_current_height: db_current_height.block_height, start_height_in_file, diff: start_height_in_file - db_current_height?.block_height - 1})
-         console.log(`We skipped ${start_height_in_file - db_current_height?.block_height - 1} Blocks`);
-         for(let i = lower_height + 1; i<start_height_in_file; i++){
-          // throw Error("error")
-          console.log({adding_block: i})
-          await InsertSkippedBlock(i);
-          console.log("inserted")
-          await delay(2)
+      
+      if (db_current_height && start_height_in_file - db_current_height?.block_height > 1) {
+        console.log({ db_current_height: db_current_height.block_height, start_height_in_file, diff: start_height_in_file - db_current_height?.block_height - 1 });
+        console.log(`We skipped ${start_height_in_file - db_current_height?.block_height - 1} Blocks`);
 
-         }
+        for (let i = lower_height + 1; i < start_height_in_file; i++) {
+          console.log({ adding_block: i });
 
+          let retryCount = 0;
+          const maxRetries = 5;
+          let success = false;
+
+          while (retryCount < maxRetries && !success) {
+            try {
+              await InsertSkippedBlock(i); // Try to insert the block
+              success = true; // If successful, break out of the retry loop
+              console.log(`Block ${i} inserted successfully`);
+            } catch (error) {
+              retryCount++;
+              console.log(`Failed to insert block ${i}. Attempt ${retryCount} of ${maxRetries}`);
+
+              if (retryCount < maxRetries) {
+                await delay(2); // Wait for 2 seconds before retrying
+              } else {
+                console.log(`Max retries reached for block ${i}. Moving on...`);
+              }
+            }
+          }
+        }
       }
     }
     const processQueue = async () => {
