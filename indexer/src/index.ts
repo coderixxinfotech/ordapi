@@ -647,28 +647,29 @@ const init = async () => {
     } = mempoolJS({
       hostname: "mempool.ordinalnovus.com",
     });
+    await check_db();
+
 
     const blockQueue: any[] = [];
 
         let lines_index = fs.readFileSync(ord_folder + network_folder + "log_file_index.txt", "utf8").split('\n')
     if (lines_index.length >=1) {
-      console.log("Nothing new, waiting!!")
       const start_height_in_file = Number(lines_index[0].split(";")[1]);
 
       const db_current_height = await BlockHashes.findOne({}).sort({block_height: -1});
       if(db_current_height && start_height_in_file - db_current_height?.block_height > 1)
       {
-        console.log({db_current_height: db_current_height.block_height, start_height_in_file, diff: start_height_in_file - db_current_height?.block_height})
-         console.log(`We skipped ${start_height_in_file - db_current_height?.block_height} Blocks`);
+        console.log({db_current_height: db_current_height.block_height, start_height_in_file, diff: start_height_in_file - db_current_height?.block_height - 1})
+         console.log(`We skipped ${start_height_in_file - db_current_height?.block_height - 1} Blocks`);
          for(let i = db_current_height.block_height + 1; i<start_height_in_file; i++){
+          // throw Error("error")
+          console.log({adding_block: i})
           await InsertSkippedBlock(i);
 
          }
-         await cleanup()
 
       }
     }
-
     const processQueue = async () => {
       while (blockQueue.length > 0) {
         // const blockData = blockQueue.shift();
@@ -887,12 +888,12 @@ async function check_db(): Promise<void> {
   // console.log("current_ord_number_to_id_height: " + current_ord_number_to_id_height);
 
   // Fetching the max block_height from ord_content collection
-  const currentContentHeightDoc = await Inscription.aggregate([
-    { $group: { _id: null, max_height: { $max: "$genesis_height" } } }
-  ]);
+  // const currentContentHeightDoc = await Inscription.aggregate([
+  //   { $group: { _id: null, max_height: { $max: "$genesis_height" } } }
+  // ]);
 
-  const current_content_height = currentContentHeightDoc.length > 0 ? currentContentHeightDoc[0].max_height : -1;
-  console.log("current_inscription_height: " + current_content_height);
+  // const current_content_height = currentContentHeightDoc.length > 0 ? currentContentHeightDoc[0].max_height : -1;
+  // console.log("current_inscription_height: " + current_content_height);
 
   // Handling discrepancies in heights
   // if (current_height < current_transfer_height) {
@@ -903,11 +904,24 @@ async function check_db(): Promise<void> {
   //   console.error("current_height < current_ord_number_to_id_height");
   //   await OrdNumberToId.deleteMany({ block_height: { $gt: current_height } });
   // }
-  if (current_height < current_content_height) {
-    console.error("current_height < current_content_height");
-    console.log("These docs need to be deleted. ", {current_height})
-    // await Inscription.deleteMany({ block_height: { $gt: current_height } });
+  // if (current_height < current_content_height) {
+  //   console.error("current_height < current_content_height");
+  //   console.log("These docs need to be deleted. ", {current_height})
+  //   // await Inscription.deleteMany({ block_height: { $gt: current_height } });
+  // }
+  const latest_inscription_block = await Inscription.findOne({}).sort({inscription_number: -1});
+  const latest_block_height = await BlockHashes.findOne({}).sort({block_height: -1});
+
+
+  if( latest_block_height && latest_inscription_block && latest_block_height?.block_height>latest_inscription_block.genesis_height){
+    await BlockHashes.deleteMany({block_height: {$gt: latest_inscription_block.genesis_height}});
+    console.log(`Latest Ins and Latest Blockhash height was mismatched so deleted wrong Blockhashes`);
+    throw Error(
+      'HEIGHT MISMATCH BETWEEN INSCRIPTION AND BLOCKHASHES'
+    )
   }
+
+  console.log("checked")
 }
 
 

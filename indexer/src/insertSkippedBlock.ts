@@ -16,7 +16,7 @@ export async function InsertSkippedBlock(block: number){
 
   const url = `${process.env.PROVIDER}/block/${block}`;
 
-//   console.log({ url });
+  console.log({ url });
 
   const result = await axios.get(url, {
     headers: { Accept: "application/json" },
@@ -415,10 +415,7 @@ async function checkPrevBlock(block: number){
     // make sure previous block data is complete;
     const inscriptionsOfThisBlockInDB = await Inscription.countDocuments({genesis_height : block-1});
 
-      if (!inscriptionsOfThisBlockInDB) 
-// { await InsertSkippedBlock(block-1)
-   throw Error("This BLOCK is messed up: "+block);
-  // }
+
 
   const url = `${process.env.PROVIDER}/block/${block - 1}`;
 
@@ -431,7 +428,7 @@ async function checkPrevBlock(block: number){
   const data = result.data;
 
 
-  if(inscriptionsOfThisBlockInDB>0 && inscriptionsOfThisBlockInDB != data.inscriptions.length)
+  if(inscriptionsOfThisBlockInDB != data.inscriptions.length)
   // {  await Inscription.deleteMany({genesis_height: block-1})
 // await InsertSkippedBlock(block-1)
   throw Error("This BLOCK is messed up: "+block)
