@@ -548,12 +548,11 @@ console.log(execSync("pwd", { stdio: 'inherit' }))
     // Use a Map to filter out duplicates based on a unique field (e.g., _id)
     const uniqueOps = new Map();
 
-    transfer_ins_ops.forEach((op:any) => {
-        const key = op.updateOne.filter.output; // Adjust based on your unique identifier
-        if (!uniqueOps.has(key)) {
-            uniqueOps.set(key, op);
-        }
+    transfer_ins_ops.forEach((op: any) => {
+    const key = op.updateOne.filter.output; // Adjust based on your unique identifier
+    uniqueOps.set(key, op); // Overwrites any previous entry for this key
     });
+
 
     // Convert the Map back to an array
     const uniqueTransferOps = Array.from(uniqueOps.values());
@@ -650,6 +649,25 @@ const init = async () => {
     });
 
     const blockQueue: any[] = [];
+
+        let lines_index = fs.readFileSync(ord_folder + network_folder + "log_file_index.txt", "utf8").split('\n')
+    if (lines_index.length >=1) {
+      console.log("Nothing new, waiting!!")
+      const start_height_in_file = Number(lines_index[0].split(";")[1]);
+
+      const db_current_height = await BlockHashes.findOne({}).sort({block_height: -1});
+      if(db_current_height && start_height_in_file - db_current_height?.block_height > 1)
+      {
+        console.log({db_current_height: db_current_height.block_height, start_height_in_file, diff: start_height_in_file - db_current_height?.block_height})
+         console.log(`We skipped ${start_height_in_file - db_current_height?.block_height} Blocks`);
+         for(let i = db_current_height.block_height + 1; i<start_height_in_file; i++){
+          await InsertSkippedBlock(i);
+
+         }
+         await cleanup()
+
+      }
+    }
 
     const processQueue = async () => {
       while (blockQueue.length > 0) {
@@ -894,7 +912,7 @@ async function check_db(): Promise<void> {
 
 
 
-main_index()
+// main_index()
 init()
 
 enum Charm {

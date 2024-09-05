@@ -416,9 +416,9 @@ async function checkPrevBlock(block: number){
     const inscriptionsOfThisBlockInDB = await Inscription.countDocuments({genesis_height : block-1});
 
       if (!inscriptionsOfThisBlockInDB) 
-{ await InsertSkippedBlock(block-1)
-  //  throw Error("This BLOCK is messed up: "+block);
-  }
+// { await InsertSkippedBlock(block-1)
+   throw Error("This BLOCK is messed up: "+block);
+  // }
 
   const url = `${process.env.PROVIDER}/block/${block - 1}`;
 
@@ -432,10 +432,10 @@ async function checkPrevBlock(block: number){
 
 
   if(inscriptionsOfThisBlockInDB>0 && inscriptionsOfThisBlockInDB != data.inscriptions.length)
-  {  await Inscription.deleteMany({genesis_height: block-1})
-await InsertSkippedBlock(block-1)
-  // throw Error("This BLOCK is messed up: "+block)
-}
+  // {  await Inscription.deleteMany({genesis_height: block-1})
+// await InsertSkippedBlock(block-1)
+  throw Error("This BLOCK is messed up: "+block)
+// }
 
 
   return;
