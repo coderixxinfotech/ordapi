@@ -51,7 +51,7 @@ const OrdNetworkTypeSchema: Schema = new Schema({
 });
 
 const BlockHashesSchema: Schema = new Schema({
-  block_height: { type: Number, required: true },
+  block_height: { type: Number, required: true, unique: true },
   blockhash:{type: String, required: true}
 });
 
