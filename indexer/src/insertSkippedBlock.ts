@@ -413,6 +413,7 @@ async function checkPrevBlock(block: number){
 
     // make sure previous block data is complete;
     const inscriptionsOfThisBlockInDB = await Inscription.countDocuments({genesis_height : block-1});
+    const blockhash = await BlockHashes.findOne({block_height: block-1})
 
 
 
@@ -432,6 +433,9 @@ async function checkPrevBlock(block: number){
 // await InsertSkippedBlock(block-1)
   throw Error("This BLOCK is messed up: "+block)
 // }
+else if(!blockhash){
+  await BlockHashes.create({block_height: block - 1, blockhash: data.hash})
+}
 
 
   return;
