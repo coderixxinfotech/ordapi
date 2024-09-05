@@ -96,9 +96,8 @@ if(data.inscriptions.length){
      {
          await Inscription.bulkWrite(bulkWriteOperations);
          // verify
-         if(await Inscription.countDocuments({genesis_height: block})===data.inscriptions.length){
-            await BlockHashes.create({block_height: block, blockhash: data.hash})
-         }
+                     await BlockHashes.create({block_height: block, blockhash: data.hash})
+         
         }
 
 }else{
