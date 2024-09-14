@@ -692,6 +692,9 @@ const init = async () => {
         }
       }
     }
+
+   await main_index();
+
     const processQueue = async () => {
       while (blockQueue.length > 0) {
         // const blockData = blockQueue.shift();
@@ -748,6 +751,7 @@ ws.addEventListener("message", async function incoming({ data }: any) {
 
     // If this is the first block in the queue, start processing
     if (blockQueue.length === 1) {
+      console.log("starting process execution...")
       processQueue();
     }
   }
