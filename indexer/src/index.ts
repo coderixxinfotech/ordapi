@@ -940,11 +940,28 @@ async function check_db(): Promise<void> {
 
 
   if( latest_block_height && latest_inscription_block && latest_block_height?.block_height>latest_inscription_block.genesis_height){
-    await BlockHashes.deleteMany({block_height: {$gt: latest_inscription_block.genesis_height}});
+    // Extra Blockhash found with no related inscription in DB
+    // Its possible the block has zero inscriptions
+
+      const url = `${process.env.PROVIDER}/block/${latest_block_height?.block_height}`;
+
+  console.log({ url });
+
+  const result = await axios.get(url, {
+    headers: { Accept: "application/json" },
+  });
+
+  const data = result.data;
+  // console.log({data})
+
+if(data.inscriptions.length){
+   await BlockHashes.deleteMany({block_height: {$gt: latest_inscription_block.genesis_height}});
     console.log(`Latest Ins and Latest Blockhash height was mismatched so deleted wrong Blockhashes`);
     throw Error(
       'HEIGHT MISMATCH BETWEEN INSCRIPTION AND BLOCKHASHES'
     )
+}
+   
   }
 
   console.log("checked")
