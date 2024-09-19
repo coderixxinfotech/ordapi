@@ -60,11 +60,11 @@ const BlockHashesSchema: Schema = new Schema({
 
 const OrdIndexerVersion = mongoose.model<IOrdIndexerVersion>('OrdIndexerVersion', OrdIndexerVersionSchema);
 const OrdNetworkType = mongoose.model<IOrdNetworkType>('OrdNetworkType', OrdNetworkTypeSchema);
-const BlockHashes = mongoose.model<IBlockHashes>('BlockHashes', BlockHashesSchema);
-const Inscription =
-  models.Inscription || model("Inscription", inscriptionSchema);
+const FractalBlockHashes = mongoose.model<IBlockHashes>('FractalBlockHashes', BlockHashesSchema);
+const FractalInscription =
+  models.FractalInscription || model("FractalInscription", inscriptionSchema);
 
 // Create the ReorgStat model using the schema
-const ReorgStat = mongoose.model('ReorgStat', ReorgStatSchema);
+const FractalReorgStat = mongoose.model('FractalReorgStat', ReorgStatSchema);
 
-export {OrdIndexerVersion, OrdNetworkType, BlockHashes, Inscription, ReorgStat}
+export {OrdIndexerVersion, OrdNetworkType, FractalBlockHashes, FractalInscription, FractalReorgStat}

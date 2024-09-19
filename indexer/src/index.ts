@@ -17,7 +17,7 @@ import { initializeDB } from './reset_init';
 
 // models
 
-import { OrdIndexerVersion, OrdNetworkType, BlockHashes, Inscription, ReorgStat } from "./models"
+import { OrdIndexerVersion, OrdNetworkType, FractalBlockHashes as BlockHashes, FractalInscription as Inscription, FractalReorgStat as ReorgStat } from "./models"
 import dbConnect from './lib/dbConnect';
 // import Transaction from './models/transaction';
 
@@ -32,12 +32,12 @@ process.env["NODE_TLS_REJECT_UNAUTHORIZED"] = "0";
 
 
 const chain_folder: string = process.env.BITCOIN_CHAIN_FOLDER || "~/.bitcoin/";
-const bitcoin_rpc_user: string = process.env.BITCOIN_RPC_USER || "mempool";
-const bitcoin_rpc_password: string = process.env.BITCOIN_RPC_PASSWD || "mempool";
-const bitcoin_rpc_url: string = process.env.BITCOIN_RPC_URL || "bitcoin-container:8332";
+const bitcoin_rpc_user: string = process.env.BITCOIN_RPC_USER || "fractalbitcoin";
+const bitcoin_rpc_password: string = process.env.BITCOIN_RPC_PASSWD || "fractalbitcoin_1234567";
+const bitcoin_rpc_url: string = process.env.BITCOIN_RPC_URL || "84.16.235.69:8442" || "fractald-mainnet-bitcoind-1:8332";
 
 
-let ord_binary: string = process.env.ORD_BINARY || "./../target/release/ord";
+let ord_binary: string = process.env.ORD_BINARY || "./../target/release/fractal-ord";
 let ord_folder: string = process.env.ORD_FOLDER || ".";
 if (ord_folder.length == 0) {
   console.error("ord_folder not set in .env, please run python3 reset_init.py");
@@ -80,7 +80,7 @@ switch (network_type) {
 console.log({ network })
 
 const first_inscription_heights: { [key: string]: number } = {
-  'mainnet': 856450,
+  'mainnet': 21000,
   'testnet': 2413343,
   'signet': 112402,
   'regtest': 0,
@@ -174,7 +174,7 @@ console.log(execSync("pwd", { stdio: 'inherit' }))
       network_argument = " --testnet"
     }
 
-    let ord_index_cmd = ord_binary + network_argument + " --bitcoin-data-dir \"" + chain_folder + "\" --index-sats --index-runes --data-dir \"" + ord_datadir + "\"" + cookie_arg + " --height-limit " + (ord_end_block_height) + " " + rpc_argument + " index run"
+    let ord_index_cmd = ord_binary + network_argument + " --chain=fractal-mainnet --bitcoin-data-dir \"" + chain_folder + "\" --index-runes --data-dir \"" + ord_datadir + "\"" + cookie_arg + " --height-limit " + (ord_end_block_height) + " " + rpc_argument + " index run"
 
     // TODO: Undo comment to start ord indexer
     try {
@@ -1443,3 +1443,4 @@ export async function cleanup(block?: number) {
   // End time
   console.timeEnd("cleanupOperation");
 }
+

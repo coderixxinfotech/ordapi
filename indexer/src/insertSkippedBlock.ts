@@ -1,5 +1,5 @@
 import dbConnect from "./lib/dbConnect"
-import { BlockHashes, Inscription } from "./models";
+import { FractalBlockHashes as BlockHashes, FractalInscription as Inscription } from "./models";
 import axios from 'axios';
 import fetchContentFromProviders, { fetchInscriptionDetails } from "./utils";
 import crypto from "crypto"
@@ -275,6 +275,7 @@ const processInscription = async (inscription_id: string, bulkOps: any) => {
     console.dir(inscriptionDoc, { depth: null });
     throw Error("GENESIS HEIGHT MISSING");
   }
+  if(!token)
   bulkOps.push({
     updateOne: {
       filter: {
@@ -343,32 +344,32 @@ export const handlePreSaveLogic = async (bulkDocs: Array<Partial<any>>) => {
     const doc = updateOne.update.$set;
 
 
-    if (i === 0 && doc.inscription_number > 0) {
-      const prevDocument = await Inscription.findOne({
-        inscription_number: doc.inscription_number - 1,
-      });
+    // if (i === 0 && doc.inscription_number > 0) {
+    //   const prevDocument = await Inscription.findOne({
+    //     inscription_number: doc.inscription_number - 1,
+    //   });
 
-      if (!prevDocument || !prevDocument.inscription_id) {
-        await BlockHashes.deleteOne({block_height: doc.genesis_height - 1});
-        await Inscription.deleteMany({genesis_height: doc.genesis_height - 1})
-        await InsertSkippedBlock(doc.genesis_height - 1)
-        throw new Error(
-          `1) A document with number ${
-            doc.inscription_number - 1
-          } does not exist or inscriptionId is missing in it`
-        );
-      }
-    } else if (i > 0) {
+    //   if (!prevDocument || !prevDocument.inscription_id) {
+    //     await BlockHashes.deleteOne({block_height: doc.genesis_height - 1});
+    //     await Inscription.deleteMany({genesis_height: doc.genesis_height - 1})
+    //     await InsertSkippedBlock(doc.genesis_height - 1)
+    //     throw new Error(
+    //       `1) A document with number ${
+    //         doc.inscription_number - 1
+    //       } does not exist or inscriptionId is missing in it`
+    //     );
+    //   }
+    // } else if (i > 0) {
 
-    const lastDoc = bulkDocs[i-1].updateOne.update.$set;
-    if (doc.inscription_number !== lastDoc.inscription_number + 1) {
-      throw new Error(
-        `2) The inscription_number for document at position ${i} is not consecutive. Expected ${
-          lastDoc.inscription_number + 1
-        }, but got ${doc.inscription_number}`
-      );
-    }
-  }
+  //   const lastDoc = bulkDocs[i-1].updateOne.update.$set;
+  //   if (doc.inscription_number !== lastDoc.inscription_number + 1) {
+  //     throw new Error(
+  //       `2) The inscription_number for document at position ${i} is not consecutive. Expected ${
+  //         lastDoc.inscription_number + 1
+  //       }, but got ${doc.inscription_number}`
+  //     );
+  //   }
+  // }
 
     // Updated SHA version logic
     // if (doc.sha && !doc.token) {
