@@ -1072,22 +1072,11 @@ const processDoc=(parts:string[])=>{
 
     const location_regex = /txid:\s*0x([a-fA-F0-9]+),\s*vout:\s*(\d+)\s*},\s*offset:\s*(\d+)/;
 
-    const sat_regex = /sat:(?:Some\()?Sat\((\d+)\)\)?/;
-
 
           let charms = null;
           charms = parseInt(parts[14].split(":")[1], 10);
           charms = charmsSet(charms).map(displayCharm)
 
-          const sat_match = parts[11].match(sat_regex);
-          let satValue = "";
-          if (sat_match) {
-            satValue = BigInt(sat_match[1]).toString(); // Use BigInt if the number is very large
-            // console.log('sat:', satValue);
-          } else {
-            // console.error('No match found');
-            throw Error("no sat found")
-          }
 
 
           const match = parts[13].match(location_regex);
@@ -1152,7 +1141,7 @@ if (delegate_matches) {
                 parsed_metaprotocol: [],
                 content: !delegate? parts[9].includes("content_json:") ? parts[9].substring("content_json:".length) : parts[9].substring("content:".length) || null:null,
                 parents: parts[10].split(":")[1] || null,
-                sat: satValue,
+
                 timestamp: parseInt(parts[12].split(":")[1]) * 1000,
                 location,
                 output,
