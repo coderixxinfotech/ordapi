@@ -95,7 +95,7 @@ const DB_VERSION = 1;
 const INDEXER_VERSION = 1;
 const ORD_VERSION = "0.18.5";
 
-import mempoolJS from "cryptic-mempool";
+// import mempoolJS from "cryptic-mempool";
 import { handlePreSaveLogic, InsertSkippedBlock } from './insertSkippedBlock';
 import axios from 'axios';
 
@@ -640,156 +640,164 @@ await cleanup()
 }
 
 
-const init = async () => {
-  try {
-    const {
-      bitcoin: { websocket },
-    } = mempoolJS({
-      hostname: "mempool.ordinalnovus.com",
-    });
-    await check_db();
+// const init = async () => {
+//   try {
+//     const {
+//       bitcoin: { websocket },
+//     } = mempoolJS({
+//       hostname: "mempool.ordinalnovus.com",
+//     });
+//     await check_db();
 
 
-    const blockQueue: any[] = [];
+//     const blockQueue: any[] = [];
 
-        let lines_index = fs.readFileSync(ord_folder + network_folder + "log_file_index.txt", "utf8").split('\n')
-    if (lines_index.length >=1) {
-      const start_height_in_file = Number(lines_index[0].split(";")[1]);
+//         let lines_index = fs.readFileSync(ord_folder + network_folder + "log_file_index.txt", "utf8").split('\n')
+//     if (lines_index.length >=1) {
+//       const start_height_in_file = Number(lines_index[0].split(";")[1]);
 
-      const db_current_height = await BlockHashes.findOne({}).sort({block_height: -1});
+//       const db_current_height = await BlockHashes.findOne({}).sort({block_height: -1});
 
-      const db_current_inscription_height = await Inscription.findOne({}).sort({inscription_number: -1});
+//       const db_current_inscription_height = await Inscription.findOne({}).sort({inscription_number: -1});
 
-      const lower_height = db_current_inscription_height && db_current_height && db_current_inscription_height.genesis_height < db_current_height?.block_height? db_current_inscription_height.genesis_height: db_current_height?.block_height;
+//       const lower_height = db_current_inscription_height && db_current_height && db_current_inscription_height.genesis_height < db_current_height?.block_height? db_current_inscription_height.genesis_height: db_current_height?.block_height;
       
-      if (db_current_height && start_height_in_file - db_current_height?.block_height > 1) {
-        console.log({ db_current_height: db_current_height.block_height, start_height_in_file, diff: start_height_in_file - db_current_height?.block_height - 1 });
-        console.log(`We skipped ${start_height_in_file - db_current_height?.block_height - 1} Blocks`);
+//       if (db_current_height && start_height_in_file - db_current_height?.block_height > 1) {
+//         console.log({ db_current_height: db_current_height.block_height, start_height_in_file, diff: start_height_in_file - db_current_height?.block_height - 1 });
+//         console.log(`We skipped ${start_height_in_file - db_current_height?.block_height - 1} Blocks`);
 
-        for (let i = lower_height + 1; i < start_height_in_file; i++) {
-          console.log({ adding_block: i });
+//         for (let i = lower_height + 1; i < start_height_in_file; i++) {
+//           console.log({ adding_block: i });
 
-          let retryCount = 0;
-          const maxRetries = 5;
-          let success = false;
+//           let retryCount = 0;
+//           const maxRetries = 5;
+//           let success = false;
 
-          while (retryCount < maxRetries && !success) {
-            try {
-              await InsertSkippedBlock(i); // Try to insert the block
-              success = true; // If successful, break out of the retry loop
-              console.log(`Block ${i} inserted successfully`);
-            } catch (error) {
-              retryCount++;
-              console.log(`Failed to insert block ${i}. Attempt ${retryCount} of ${maxRetries}`);
+//           while (retryCount < maxRetries && !success) {
+//             try {
+//               await InsertSkippedBlock(i); // Try to insert the block
+//               success = true; // If successful, break out of the retry loop
+//               console.log(`Block ${i} inserted successfully`);
+//             } catch (error) {
+//               retryCount++;
+//               console.log(`Failed to insert block ${i}. Attempt ${retryCount} of ${maxRetries}`);
 
-              if (retryCount < maxRetries) {
-                await delay(2); // Wait for 2 seconds before retrying
-              } else {
-                console.log(`Max retries reached for block ${i}. Moving on...`);
-              }
-            }
-          }
-        }
-      }
-    }
+//               if (retryCount < maxRetries) {
+//                 await delay(2); // Wait for 2 seconds before retrying
+//               } else {
+//                 console.log(`Max retries reached for block ${i}. Moving on...`);
+//               }
+//             }
+//           }
+//         }
+//       }
+//     }
 
-   await main_index();
+//    await main_index();
 
-    const processQueue = async () => {
-      while (blockQueue.length > 0) {
-        // const blockData = blockQueue.shift();
-        console.log(`need to process ${blockQueue.length-1} more times. ID: ${blockQueue.length}`)
-        console.log(`${blockQueue.length} items in Queue`)
-        await main_index();
-      }
-    };
+//     const processQueue = async () => {
+//       while (blockQueue.length > 0) {
+//         // const blockData = blockQueue.shift();
+//         console.log(`need to process ${blockQueue.length-1} more times. ID: ${blockQueue.length}`)
+//         console.log(`${blockQueue.length} items in Queue`)
+//         await main_index();
+//       }
+//     };
 
-    // Function to establish WebSocket connection
-    const connectWebSocket = () => {
-      const ws = websocket.wsInit();
+//     // Function to establish WebSocket connection
+//     const connectWebSocket = () => {
+//       const ws = websocket.wsInit();
 
      
-      // Event listener for incoming WebSocket messages
-ws.addEventListener("message", async function incoming({ data }: any) {
-  // Parse the incoming data as JSON
-  data = JSON.parse(data.toString());
+//       // Event listener for incoming WebSocket messages
+// ws.addEventListener("message", async function incoming({ data }: any) {
+//   // Parse the incoming data as JSON
+//   data = JSON.parse(data.toString());
 
-  // Check if the data contains a block
-  if (data.block) {
-    // Connect to the database
-    await dbConnect();
+//   // Check if the data contains a block
+//   if (data.block) {
+//     // Connect to the database
+//     await dbConnect();
 
-    // Get the current block height from the database
-    const currentHeightResult = await BlockHashes.aggregate([
-      { $group: { _id: null, max_height: { $max: "$block_height" } } }
-    ]);
+//     // Get the current block height from the database
+//     const currentHeightResult = await BlockHashes.aggregate([
+//       { $group: { _id: null, max_height: { $max: "$block_height" } } }
+//     ]);
 
-    // Set the current block height, or -1 if no blocks are found
-    let current_height = currentHeightResult.length > 0 ? currentHeightResult[0].max_height : -1;
+//     // Set the current block height, or -1 if no blocks are found
+//     let current_height = currentHeightResult.length > 0 ? currentHeightResult[0].max_height : -1;
 
-    // Fetch the current block height from the mempool API
-    const { data: mempool_height } = await axios.get(`https://mempool.ordinalnovus.com/api/blocks/tip/height`);
+//     // Fetch the current block height from the mempool API
+//     const { data: mempool_height } = await axios.get(`https://mempool.ordinalnovus.com/api/blocks/tip/height`);
 
-    // If the mempool height is greater than the current height, process the difference
-    if (mempool_height > current_height) {
-      console.log({ diff: mempool_height - current_height, queue: blockQueue.length });
+//     // If the mempool height is greater than the current height, process the difference
+//     if (mempool_height > current_height) {
+//       console.log({ diff: mempool_height - current_height, queue: blockQueue.length });
 
-      // Calculate the number of blocks that need to be processed
-      const diff = mempool_height - current_height;
+//       // Calculate the number of blocks that need to be processed
+//       const diff = mempool_height - current_height;
 
-      const requiredItems = Math.ceil(diff / LIMIT);
+//       const requiredItems = Math.ceil(diff / LIMIT);
 
-        // Push new items into the blockQueue if there are not enough
-        while (blockQueue.length < requiredItems) {
-          blockQueue.push(data);
-        }
+//         // Push new items into the blockQueue if there are not enough
+//         while (blockQueue.length < requiredItems) {
+//           blockQueue.push(data);
+//         }
 
 
-      // Log the number of blocks that are behind
-      console.log(`We are ${diff} Blocks Behind and number of times it will be processed: ${blockQueue.length}`);
-    }
+//       // Log the number of blocks that are behind
+//       console.log(`We are ${diff} Blocks Behind and number of times it will be processed: ${blockQueue.length}`);
+//     }
 
-    // If this is the first block in the queue, start processing
-    if (blockQueue.length === 1) {
-      console.log("starting process execution...")
-      processQueue();
-    }
+//     // If this is the first block in the queue, start processing
+//     if (blockQueue.length === 1) {
+//       console.log("starting process execution...")
+//       processQueue();
+//     }
+//   }
+// });
+
+
+//       const reconnectWebSocket = (attempt = 1) => {
+//         const delay = Math.min(60000, attempt * 5000 + Math.random() * 5000);
+//         setTimeout(init, delay);
+//       };
+
+//       ws.addEventListener("close", () => {
+//         console.log("WebSocket was closed. Attempting to reconnect...");
+//         reconnectWebSocket();
+//       });
+
+//       ws.addEventListener("error", (error: any) => {
+//         console.error("WebSocket error:", error);
+//         ws.close();
+//         reconnectWebSocket();
+//       });
+
+//       websocket.wsWantData(ws, [
+//         "blocks",
+//         "stats",
+//         "mempool-blocks",
+//         "live-2h-chart",
+//       ]);
+//     };
+
+//     // Initial call to connect the WebSocket
+//     connectWebSocket();
+//   } catch (error) {
+//     console.log("Initialization error:", error);
+//   }
+// };
+
+
+
+async function forever_loop(){
+  while(true){
+    await main_index();
+    await delay(5)
+  
   }
-});
-
-
-      const reconnectWebSocket = (attempt = 1) => {
-        const delay = Math.min(60000, attempt * 5000 + Math.random() * 5000);
-        setTimeout(init, delay);
-      };
-
-      ws.addEventListener("close", () => {
-        console.log("WebSocket was closed. Attempting to reconnect...");
-        reconnectWebSocket();
-      });
-
-      ws.addEventListener("error", (error: any) => {
-        console.error("WebSocket error:", error);
-        ws.close();
-        reconnectWebSocket();
-      });
-
-      websocket.wsWantData(ws, [
-        "blocks",
-        "stats",
-        "mempool-blocks",
-        "live-2h-chart",
-      ]);
-    };
-
-    // Initial call to connect the WebSocket
-    connectWebSocket();
-  } catch (error) {
-    console.log("Initialization error:", error);
-  }
-};
-
-
+}
 
 async function fix_db_from_version(db_version: string | number) {
   console.error("Unknown db_version: " + db_version)
@@ -970,7 +978,8 @@ if(data.inscriptions.length){
 
 
 // main_index()
-init()
+// init()
+forever_loop()
 
 enum Charm {
   Coin = 0,
