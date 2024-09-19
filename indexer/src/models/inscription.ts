@@ -1,9 +1,9 @@
 import mongoose, { Schema } from "mongoose";
 
-const attributeSchema = new Schema({
-  trait_type: { type: String, required: true },
-  value: { type: String, required: true },
-});
+// const attributeSchema = new Schema({
+//   trait_type: { type: String, required: true },
+//   value: { type: String, required: true },
+// });
 
 // Define the main schema
 export const inscriptionSchema = new mongoose.Schema(
