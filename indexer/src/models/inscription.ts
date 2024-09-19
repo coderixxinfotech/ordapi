@@ -46,21 +46,7 @@ export const inscriptionSchema = new mongoose.Schema(
       type: Date,
     },
      delegate: { type: String },
-    // children: { type: Array }, //remove
-    // next: { type: String }, //remove
-    // previous: { type: String }, //remove
-    // parent: { type: String }, // should be an array
-
-    // genesis_address: { type: String }, // remove
-    // genesis_fee: { type: Number }, // remove
-    // genesis_height: { type: Number, index: true },
-    // genesis_transaction: { type: String }, // remove
-    // flagged: { type: Boolean }, // keep only true values
-    // banned: { type: Boolean }, // keep only true value
-    // reason: { type: String }, // keep only true values
-    // updated_by: { type: String }, // remove
-    // block: { type: Number }, // remove
-    // content_length: { type: Number }, // remove
+    genesis_height: { type: Number, index: true },
     content_type: { type: String },
     // collection detail
     official_collection: {
@@ -70,50 +56,6 @@ export const inscriptionSchema = new mongoose.Schema(
     },
     collection_item_name: { type: String, set: (v: string) => v.trim() },
     collection_item_number: { type: Number },
-    attributes: { type: [attributeSchema] }, // remove empty values
-    // sat details
-
-    // sat_timestamp: {
-    //   // remove
-    //   type: Date,
-    // },
-    // cycle: { type: Number }, // remove
-    // decimal: { type: String }, // remove
-    // degree: { type: String }, // remove
-    // epoch: { type: Number }, // remove
-    // percentile: { type: String }, // remove
-    // period: { type: Number }, // remove
-    // rarity: { type: String }, // remove
-    // sat: { type: Number },
-    // sat_name: { type: String },
-    // sat_offset: { type: Number }, // remove
-    // lists: [{ type: Schema.Types.ObjectId, ref: "Collection" }], // remove
-    // tags: {
-    //   type: Array,
-    //   required: false,
-    //   validate: {
-    //     validator: function (tags: any[]) {
-    //       const pattern = /^[^A-Z]+$/;
-    //       return tags.every((tag) => pattern.test(tag));
-    //     },
-
-    //     message: () =>
-    //       `Tags should only contain lowercase letters and hyphens.`,
-    //   },
-    // },
-    // error: {
-    //   type: Boolean,
-    //   default: false,
-    //   validate: {
-    //     validator: function (this: any, value: boolean) {
-    //       if (value) console.log(this.inscription_id, "error here");
-    //       return !value || (value === true && !!this.error_tag);
-    //     },
-    //     message: 'If "error" is set to true, "error_tag" must be provided.',
-    //   },
-    // },
-    // error_retry: { type: Number, default: 0 },
-    // error_tag: { type: String, default: null },
     offset: { type: Number },
     output_value: { type: Number },
     address: {
@@ -166,35 +108,12 @@ export const inscriptionSchema = new mongoose.Schema(
     unsigned_psbt: { type: String },
     in_mempool: { type: Boolean, default: false },
     txid: { type: String },
-    // sat_block_time: { type: Date }, // remove
-    // sattributes: [{ type: String }], // remove
-    // last_checked: { type: Date }, //remove
     version: { type: Number },
     token: { type: Boolean },
-    // domain_name: { type: String, set: (v: string) => v.trim() }, // remove
-    // domain_valid: { type: Boolean }, // remove
-
-    // new fields (metadata + metaprotocols)
-    // charms: { type: Number },
-    // charms_array: { type: [String] },
-    // transfer_valid: { type: Boolean }, // remove
     metaprotocol: { type: String },
-    // parsed_metaprotocol: {
-    //   type: [String],
-    //   set: function (value: string) {
-    //     // Check if the value is a string and not empty
-    //     if (typeof value === "string" && value.trim().length > 0) {
-    //       // Split the string by a delimiter (e.g., comma), trim and convert each part to lowercase
-    //       return value.split(":").map((item) => item.trim().toLowerCase());
-    //     } else {
-    //       return [];
-    //     }
-    //   },
-    // },
     metadata: {
       type: Schema.Types.Mixed,
     },
-    // valid: { type: Boolean },
   },
   {
     timestamps: { createdAt: "created_at", updatedAt: "updated_at" },

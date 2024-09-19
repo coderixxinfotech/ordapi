@@ -288,54 +288,56 @@ const processInscription = async (inscription_id: string, bulkOps: any) => {
 };
 
 export const handlePreSaveLogic = async (bulkDocs: Array<Partial<any>>) => {
-
     console.log({bulkDocs: bulkDocs.length})
   const transformedBulkOps: any[] = [];
 
 
   // Pre-compute the maximum existing version for each unique SHA
-//   const uniqueShas = [
-//     ...new Set(insertOps.map((doc:any) => doc.updateOne.update.$set.sha)),
-//   ];
+  const uniqueShas = [
+    ...new Set(bulkDocs.map((doc:any) => doc.updateOne.update.$set.sha)),
+  ];
 
  
-//   const latestDocumentsWithSameShas = await Inscription.aggregate([
-//   {
-//     $match: {
-//       sha: { $in: uniqueShas },
-//     },
-//   },
-//   {
-//     $sort: { sha: 1, version: -1 }, // Sort by sha and then by version descending
-//   },
-//   {
-//     $group: {
-//       _id: "$sha", // Group by sha
-//       doc: { $first: "$$ROOT" }, // Get the first document in each group (i.e., the one with the highest version)
-//     },
-//   },
-//   {
-//     $replaceRoot: { newRoot: "$doc" }, // Replace the root with the document itself
-//   },
-// ]);
+  const latestDocumentsWithSameShas = await Inscription.aggregate([
+  {
+    $match: {
+      sha: { $in: uniqueShas },
+    },
+  },
+  {
+    $sort: { sha: 1, version: -1 }, // Sort by sha and then by version descending
+  },
+  {
+    $group: {
+      _id: "$sha", // Group by sha
+      doc: { $first: "$$ROOT" }, // Get the first document in each group (i.e., the one with the highest version)
+    },
+  },
+  {
+    $replaceRoot: { newRoot: "$doc" }, // Replace the root with the document itself
+  },
+]);
 
-//   console.log(`total unique shas... ${uniqueShas.length}`)
-//   console.log('total docs found in db with same sha...', latestDocumentsWithSameShas.length)
+  console.log(`total unique shas... ${uniqueShas.length}`)
+  console.log('total docs found in db with same sha...', latestDocumentsWithSameShas.length)
 
-//   for (const sha of uniqueShas) {
-//     if (sha) {
-//       const latestDocumentWithSameShaMatch = latestDocumentsWithSameShas.filter(a=>a.sha === sha);
 
-//       if(latestDocumentWithSameShaMatch.length>1){
-//         throw Error("Multiple docs with same sha received");
-//       }
-//       const latestDocumentWithSameSha = latestDocumentWithSameShaMatch[0]
-//       //@ts-ignore
-//       shaMap[sha] = latestDocumentWithSameSha
-//         ? latestDocumentWithSameSha.version
-//         : 0;
-//     }
-//   }
+let shaMap: Map<string, number> = new Map();
+
+  for (const sha of uniqueShas) {
+    if (sha) {
+      const latestDocumentWithSameShaMatch = latestDocumentsWithSameShas.filter(a=>a.sha === sha);
+
+      if(latestDocumentWithSameShaMatch.length>1){
+        throw Error("Multiple docs with same sha received");
+      }
+      const latestDocumentWithSameSha = latestDocumentWithSameShaMatch[0]
+      //@ts-ignore
+      shaMap[sha] = latestDocumentWithSameSha
+        ? latestDocumentWithSameSha.version
+        : 0;
+    }
+  }
 
 
   for (let i = 0; i < bulkDocs.length; i++) {
@@ -372,14 +374,14 @@ export const handlePreSaveLogic = async (bulkDocs: Array<Partial<any>>) => {
   // }
 
     // Updated SHA version logic
-    // if (doc.sha && !doc.token) {
-    //   if (shaMap[doc.sha] != null) {
-    //     shaMap[doc.sha]++;
-    //   } else {
-    //     shaMap[doc.sha] = 1;
-    //   }
-    //   doc.version = shaMap[doc.sha];
-    // }
+    if (doc.sha && !doc.token) {
+      if (shaMap.has(doc.sha)) {
+        shaMap.set(doc.sha, shaMap.get(doc.sha)! + 1); // Use get and set for Map
+      } else {
+        shaMap.set(doc.sha, 1);
+      }
+      doc.version = shaMap.get(doc.sha); // Access the version from the Map
+    }
 
     if(doc.sha && doc.token){
       doc.sha = null;
