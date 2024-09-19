@@ -375,8 +375,11 @@ impl Index {
                 amount: Some(1),
                 cap: Some(u128::MAX),
                 height: (
-                  Some((SUBSIDY_HALVING_INTERVAL * 4).into()),
-                  Some((SUBSIDY_HALVING_INTERVAL * 5).into()),
+                  Some((Rune::FRACTAL_START_INTERVAL * 4).into()),
+                  Some(
+                    (Rune::FRACTAL_START_INTERVAL * 5 + Rune::FRACTAL_SUBSIDY_HALVING_INTERVAL)
+                      .into(),
+                  ),
                 ),
                 offset: (None, None),
               }),
@@ -1547,7 +1550,7 @@ impl Index {
     for range in outpoint_to_sat_ranges.range::<&[u8; 36]>(&[0; 36]..)? {
       let (key, value) = range?;
       let mut offset = 0;
-      for chunk in value.value().chunks_exact(11) {
+      for chunk in value.value().chunks_exact(14) {
         let (start, end) = SatRange::load(chunk.try_into().unwrap());
         if start <= sat && sat < end {
           return Ok(Some(SatPoint {
@@ -1586,7 +1589,7 @@ impl Index {
       let (outpoint_entry, sat_ranges_entry) = range?;
 
       let mut offset = 0;
-      for sat_range in sat_ranges_entry.value().chunks_exact(11) {
+      for sat_range in sat_ranges_entry.value().chunks_exact(14) {
         let (start, end) = SatRange::load(sat_range.try_into().unwrap());
 
         if end > range_start && start < range_end {
@@ -1625,7 +1628,7 @@ impl Index {
         .map(|outpoint| outpoint.value().to_vec())
         .map(|sat_ranges| {
           sat_ranges
-            .chunks_exact(11)
+            .chunks_exact(14)
             .map(|chunk| SatRange::load(chunk.try_into().unwrap()))
             .collect::<Vec<(u64, u64)>>()
         }),

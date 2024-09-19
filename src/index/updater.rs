@@ -515,7 +515,7 @@ impl<'index> Updater<'index> {
             .to_vec(),
           };
 
-          for chunk in sat_ranges.chunks_exact(11) {
+          for chunk in sat_ranges.chunks_exact(14) {
             input_sat_ranges.push_back(SatRange::load(chunk.try_into().unwrap()));
           }
         }

@@ -481,6 +481,8 @@ fn write_to_file(&mut self, to_write: String, flush: bool) -> Result {
         Chain::Testnet => String::from("testnet3/"),
         Chain::Signet => String::from("signet/"),
         Chain::Regtest => String::from("regtest/"),
+        Chain::FractalMainnet => String::from("mainnet/"),
+        Chain::FractalTestnet => String::from("fractal-testnet/"),
       };
 
        let current_dir = env::current_dir().unwrap();
@@ -747,59 +749,60 @@ fn write_to_file(&mut self, to_write: String, flush: bool) -> Result {
           sha3_256_hash = Some(format!("{:x}", result)); // Convert the hash to a hex string
         }
         let _txcnt_limit = if !unbound && is_json_or_text {
-          self.write_to_file(
-            format!(
-              "cmd~||~{0}~||~insert~||~number_to_id~||~{1}~||~{2}~||~{3}",
-              self.height,
-              inscription_number,
-              flotsam.inscription_id,
-              parents
-                .iter()
-                .map(|p| p.to_string())
-                .collect::<Vec<_>>()
-                .join(",")
-            ),
-            false,
-          )?;
+          // self.write_to_file(
+          //   format!(
+          //     "cmd~||~{0}~||~insert~||~number_to_id~||~{1}~||~{2}~||~{3}",
+          //     self.height,
+          //     inscription_number,
+          //     flotsam.inscription_id,
+          //     parents
+          //       .iter()
+          //       .map(|p| p.to_string())
+          //       .collect::<Vec<_>>()
+          //       .join(",")
+          //   ),
+          //   false,
+          // )?;
 
           // write content as minified json
           if is_json {
-            let inscription_content_json =
-              serde_json::from_slice::<Value>(&(inscription_content.unwrap())).unwrap();
-            let inscription_content_json_str =
-              serde_json::to_string(&inscription_content_json).unwrap();
+        //     let inscription_content_json =
+        //       serde_json::from_slice::<Value>(&(inscription_content.unwrap())).unwrap();
+        //     let inscription_content_json_str =
+        //       serde_json::to_string(&inscription_content_json).unwrap();
 
-            self.write_to_file(
-              format!(
-                "cmd~||~height:{}~||~insert~||~content~||~inscription_number:{}~||~inscription_id:{}~||~is_json:{}~||~content_type:{}~||~metaprotocol:{}~||~content_json:{}~||~parents:{}~||~sat:{:?}~||~timestamp:{}~||~location:{:?}~||~charms:{}~||~output_value:{}~||~address:{:?}~||~delegate:{:?}~||~sha:{:?}~||~rune:{:?}~||~metadata:{:?}",
-                self.height,
-                inscription_number,
-                flotsam.inscription_id,
-                is_json,
-                inscription_content_type_str,
-                inscription_metaprotocol_str,
-                inscription_content_json_str,
-                parents
-                .iter()
-                .map(|p| p.to_string())
-                .collect::<Vec<_>>()
-                .join(","),sat.unwrap(), timestamp,(!unbound).then_some(new_satpoint), charms, new_output_value.unwrap_or(&0),  // Provide a default output value of 0 if none
-        new_script_pubkey
-            .and_then(|script| Some(self.chain.address_from_script(script)))  // Convert script to address
-            .map_or_else(
-                || "Invalid script".to_string(),
-                |result| result
-                    .map(|address| format!("{:?}", address))  // Use Debug formatting for NetworkUnchecked address
-                    .unwrap_or_else(|_| "Invalid address".to_string())
-            ), delegate,
-             sha3_256_hash.unwrap_or_else(|| "".to_string()),
-             rune,  match &metadata {
-            Some(meta) => format!("{:?}", meta), // Convert metadata to string if available
-            None => "".to_string(), // Handle the case where metadata is None
-        }
-              ),
-              false,
-            )?;
+              
+        //     self.write_to_file(
+        //       format!(
+        //         "cmd~||~height:{}~||~insert~||~content~||~inscription_number:{}~||~inscription_id:{}~||~is_json:{}~||~content_type:{}~||~metaprotocol:{}~||~content_json:{}~||~parents:{}~||~sat:{:?}~||~timestamp:{}~||~location:{:?}~||~charms:{}~||~output_value:{}~||~address:{:?}~||~delegate:{:?}~||~sha:{:?}~||~rune:{:?}~||~metadata:{:?}",
+        //         self.height,
+        //         inscription_number,
+        //         flotsam.inscription_id,
+        //         is_json,
+        //         inscription_content_type_str,
+        //         inscription_metaprotocol_str,
+        //         inscription_content_json_str,
+        //         parents
+        //         .iter()
+        //         .map(|p| p.to_string())
+        //         .collect::<Vec<_>>()
+        //         .join(","),sat.unwrap(), timestamp,(!unbound).then_some(new_satpoint), charms, new_output_value.unwrap_or(&0),  // Provide a default output value of 0 if none
+        // new_script_pubkey
+        //     .and_then(|script| Some(self.chain.address_from_script(script)))  // Convert script to address
+        //     .map_or_else(
+        //         || "Invalid script".to_string(),
+        //         |result| result
+        //             .map(|address| format!("{:?}", address))  // Use Debug formatting for NetworkUnchecked address
+        //             .unwrap_or_else(|_| "Invalid address".to_string())
+        //     ), delegate,
+        //      sha3_256_hash.unwrap_or_else(|| "".to_string()),
+        //      rune,  match &metadata {
+        //     Some(meta) => format!("{:?}", meta), // Convert metadata to string if available
+        //     None => "".to_string(), // Handle the case where metadata is None
+        // }
+        //       ),
+        //       false,
+        //     )?;
 
             json_txcnt_limit
           } else {

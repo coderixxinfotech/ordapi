@@ -444,7 +444,10 @@ impl Settings {
 
     let ord_chain = self.chain();
 
-    if rpc_chain != ord_chain {
+    if ord_chain != Chain::FractalMainnet
+      && ord_chain != Chain::FractalTestnet
+      && rpc_chain != ord_chain
+    {
       bail!("Bitcoin RPC server is on {rpc_chain} but ord is on {ord_chain}");
     }
 

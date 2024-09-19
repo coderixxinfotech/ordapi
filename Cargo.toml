@@ -1,7 +1,7 @@
 [package]
-name = "ord"
+name = "fractal-ord"
 description = "◉ Ordinal wallet and block explorer"
-version = "0.18.5"
+version = "0.18.5-fractal"
 license = "CC0-1.0"
 edition = "2021"
 autotests = false
@@ -48,7 +48,7 @@ mime = "0.3.16"
 mime_guess = "2.0.4"
 miniscript = "10.0.0"
 mp4 = "0.14.0"
-ord-bitcoincore-rpc = "0.17.2"
+ord-fractald-rpc = "0.17.1"
 ordinals = { version = "0.0.8", path = "crates/ordinals" }
 redb = "2.0.0"
 regex = "1.6.0"
@@ -81,7 +81,7 @@ mockcore = { path = "crates/mockcore" }
 unindent = "0.2.1"
 
 [[bin]]
-name = "ord"
+name = "fractal-ord"
 path = "src/bin/main.rs"
 
 [lib]
