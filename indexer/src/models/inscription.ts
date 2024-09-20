@@ -114,6 +114,19 @@ export const inscriptionSchema = new mongoose.Schema(
     metadata: {
       type: Schema.Types.Mixed,
     },
+        tags: {
+      type: Array,
+      required: false,
+      validate: {
+        validator: function (tags: any[]) {
+          const pattern = /^[^A-Z]+$/;
+          return tags.every(tag => pattern.test(tag));
+        },
+
+        message: () =>
+          `Tags should only contain lowercase letters and hyphens.`,
+      },
+    },
   },
   {
     timestamps: { createdAt: "created_at", updatedAt: "updated_at" },
@@ -128,11 +141,6 @@ inscriptionSchema.index({ inscription_number: -1 });
 inscriptionSchema.index({ inscription_id: 1 }, { unique: true });
 inscriptionSchema.index({ content: "text" });
 
-// address token search
-inscriptionSchema.index(
-  { address: 1, parsed_metaprotocol: 1, valid: 1 },
-  { sparse: true }
-);
 
 // address collection search
 inscriptionSchema.index(
@@ -140,24 +148,12 @@ inscriptionSchema.index(
   { sparse: true }
 );
 
-// listed token search
-inscriptionSchema.index(
-  {
-    listed_token: 1,
-    valid: 1,
-    parsed_metaprotocol: 1,
-    listed_price: 1,
-    listed_price_per_token: 1,
-  },
-  { sparse: true }
-);
-
 // listed collection search
 
 inscriptionSchema.index(
   {
-    "attributes.value": 1,
-    "attributes.trait_type": 1,
+    // "attributes.value": 1,
+    // "attributes.trait_type": 1,
     official_collection: 1,
     inscription_number: 1,
     listed: 1,
