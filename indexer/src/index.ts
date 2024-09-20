@@ -1099,7 +1099,9 @@ const processDoc=(parts:string[])=>{
             output = txid + ":" + vout;
             location = txid + ":" + vout + ":" + offset;
           } else {
-            throw Error("cant determine location")
+
+          // console.log({parts})
+            // throw Error("cant determine location")
             console.error('No match found');
           }
 
