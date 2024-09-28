@@ -974,7 +974,7 @@ if(data.inscriptions.length){
 async function forever_loop(){
   while(true){
     await main_index();
-    await delay(600)
+    await delay(60)
   
   }
 }
