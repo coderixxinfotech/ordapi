@@ -96,7 +96,7 @@ const INDEXER_VERSION = 1;
 const ORD_VERSION = "0.18.5";
 
 // import mempoolJS from "cryptic-mempool";
-import { handlePreSaveLogic, InsertSkippedBlock } from './insertSkippedBlock';
+import { handlePreSaveLogic } from './insertSkippedBlock';
 import axios from 'axios';
 
 export function delay(sec: number): Promise<void> {
@@ -223,18 +223,18 @@ console.log(execSync("pwd", { stdio: 'inherit' }))
       console.log("Nothing new, waiting!!")
 
       // check latest mempool height and latest height in our db to find if we skipped some blocks
-      const {data: mempool_height} = await axios.get(`https://mempool.ordinalnovus.com/api/blocks/tip/height`);
-      if(mempool_height > current_height)
-      {
-        console.log({current_height})
-         console.log(`We are ${mempool_height-current_height}  Blocks Behind`);
-         for(let i = current_height + 1; i<=mempool_height; i++){
-          await InsertSkippedBlock(i);
+      // const {data: mempool_height} = await axios.get(`https://mempool.ordinalnovus.com/api/blocks/tip/height`);
+      // if(mempool_height > current_height)
+      // {
+      //   console.log({current_height})
+      //    console.log(`We are ${mempool_height-current_height}  Blocks Behind`);
+      //    for(let i = current_height + 1; i<=mempool_height; i++){
+      //     await InsertSkippedBlock(i);
 
-         }
-         await cleanup()
+      //    }
+      //    await cleanup()
 
-      }
+      // }
       return;
     }
 
@@ -496,7 +496,8 @@ console.log(execSync("pwd", { stdio: 'inherit' }))
               
 
                 const doc = processDoc(parts)
-                inscription_ops.push({
+                if(doc){
+                  inscription_ops.push({
                 updateOne: {
                   filter: { inscription_id: doc.inscription_id },
                   update: {$set: filterEmptyFields(doc)}
@@ -507,6 +508,7 @@ console.log(execSync("pwd", { stdio: 'inherit' }))
                 // console.log("--4", { doc, parts })
                 // inscription_ops.push(execute_on_db(sql_query_insert_content, [parts[4], content, parts[6], parts[7], block_height]))
                 ord_sql_query_count += 1
+                }
               } else {
                 console.log({
                   insert_text_content: {
@@ -525,6 +527,7 @@ console.log(execSync("pwd", { stdio: 'inherit' }))
               //     parts, sql_query_insert_text_content, l
               // }}, '--6');
              const doc = processDoc(parts)
+             if(doc){
 
               inscription_ops.push({
                 updateOne: {
@@ -535,6 +538,7 @@ console.log(execSync("pwd", { stdio: 'inherit' }))
 
               // inscription_ops.push(execute_on_db(sql_query_insert_text_content, [parts[4], content, parts[6], parts[7], block_height]))
               ord_sql_query_count += 1
+             }
             }
           }
         }
@@ -979,7 +983,7 @@ if(data.inscriptions.length){
 async function forever_loop(){
   while(true){
     await main_index();
-    await delay(60)
+    await delay(30)
   
   }
 }
@@ -1316,6 +1320,10 @@ if (delegate_matches) {
           }),
       };
     
+
+      if(newItem.token){
+        return null;
+      }
     
   return newItem
 }
