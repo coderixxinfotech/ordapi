@@ -96,7 +96,7 @@ const INDEXER_VERSION = 1;
 const ORD_VERSION = "0.18.5";
 
 // import mempoolJS from "cryptic-mempool";
-import { handlePreSaveLogic, InsertSkippedBlock } from './insertSkippedBlock';
+import { handlePreSaveLogic } from './insertSkippedBlock';
 import axios from 'axios';
 
 export function delay(sec: number): Promise<void> {
@@ -223,18 +223,18 @@ console.log(execSync("pwd", { stdio: 'inherit' }))
       console.log("Nothing new, waiting!!")
 
       // check latest mempool height and latest height in our db to find if we skipped some blocks
-      const {data: mempool_height} = await axios.get(`https://mempool.ordinalnovus.com/api/blocks/tip/height`);
-      if(mempool_height > current_height)
-      {
-        console.log({current_height})
-         console.log(`We are ${mempool_height-current_height}  Blocks Behind`);
-         for(let i = current_height + 1; i<=mempool_height; i++){
-          await InsertSkippedBlock(i);
+      // const {data: mempool_height} = await axios.get(`https://mempool.ordinalnovus.com/api/blocks/tip/height`);
+      // if(mempool_height > current_height)
+      // {
+      //   console.log({current_height})
+      //    console.log(`We are ${mempool_height-current_height}  Blocks Behind`);
+      //    for(let i = current_height + 1; i<=mempool_height; i++){
+      //     await InsertSkippedBlock(i);
 
-         }
-         await cleanup()
+      //    }
+      //    await cleanup()
 
-      }
+      // }
       return;
     }
 
