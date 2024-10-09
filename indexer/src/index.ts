@@ -447,11 +447,16 @@ console.log(execSync("pwd", { stdio: 'inherit' }))
                 location: parts[6].split(":")[1] + ":" + parts[6].split(":")[2] + ":" + parts[6].split(":")[3],
                 output: parts[6].split(":")[1] + ":" + parts[6].split(":")[2],
                 output_value: parseInt(parts[9].split(":")[1]),
-                address: parts[10].split(":")[1].split(`"`)[1]
+                address: parts[10].split(":")[1].split(`"`)[1],
+                txid: parts[6].split(":")[1],
+                listed: false,
+                in_mempool: false,
+                signed_psbt: "",
+                unsigned_psbt: "",
+                tap_internal_key : ""
               }
 
-              const transfer_doc = {
-                
+              const transfer_doc = {                
                 block_height: parseInt(parts[1].split(":")[1]),
                 old_output: parts[5].split(":")[1] + ":" + parts[5].split(":")[2],
                 new_location: parts[6].split(":")[1] + ":" + parts[6].split(":")[2] + ":" + parts[6].split(":")[3],
