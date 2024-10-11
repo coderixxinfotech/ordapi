@@ -971,9 +971,9 @@ async function check_db(): Promise<void> {
 if(data.inscriptions.length){
   //  await BlockHashes.deleteMany({block_height: {$gt: latest_inscription_block.genesis_height}});
     console.log(`Latest Ins and Latest Blockhash height was mismatched so deleted wrong Blockhashes`);
-    throw Error(
-      'HEIGHT MISMATCH BETWEEN INSCRIPTION AND BLOCKHASHES'
-    )
+    // throw Error(
+    //   'HEIGHT MISMATCH BETWEEN INSCRIPTION AND BLOCKHASHES'
+    // )
 }
    
   }
