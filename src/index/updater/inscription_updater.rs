@@ -747,20 +747,20 @@ fn write_to_file(&mut self, to_write: String, flush: bool) -> Result {
           sha3_256_hash = Some(format!("{:x}", result)); // Convert the hash to a hex string
         }
         let _txcnt_limit = if !unbound && is_json_or_text {
-          self.write_to_file(
-            format!(
-              "cmd~||~{0}~||~insert~||~number_to_id~||~{1}~||~{2}~||~{3}",
-              self.height,
-              inscription_number,
-              flotsam.inscription_id,
-              parents
-                .iter()
-                .map(|p| p.to_string())
-                .collect::<Vec<_>>()
-                .join(",")
-            ),
-            false,
-          )?;
+          // self.write_to_file(
+          //   format!(
+          //     "cmd~||~{0}~||~insert~||~number_to_id~||~{1}~||~{2}~||~{3}",
+          //     self.height,
+          //     inscription_number,
+          //     flotsam.inscription_id,
+          //     parents
+          //       .iter()
+          //       .map(|p| p.to_string())
+          //       .collect::<Vec<_>>()
+          //       .join(",")
+          //   ),
+          //   false,
+          // )?;
 
           // write content as minified json
           if is_json {
