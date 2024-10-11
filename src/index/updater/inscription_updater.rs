@@ -872,7 +872,7 @@ fn write_to_file(&mut self, to_write: String, flush: bool) -> Result {
           //     .unwrap_or_else(|_| String::from("Invalid UTF-8"));
           self.write_to_file(
               format!(
-                "cmd~||~height:{}~||~insert~||~content~||~inscription_number:{}~||~inscription_id:{}~||~is_json:{}~||~content_type:{}~||~metaprotocol:{}~||~content:{:?}~||~parents:{}~||~sat:{:?}~||~timestamp:{}~||~location:{:?}~||~charms:{}~||~output_value:{}~||~address:{:?}~||~delegate:{:?}~||~sha:{:?}~||~rune:{:?}~||~metadata:{:?}",
+                "cmd~||~height:{}~||~insert~||~content~||~inscription_number:{}~||~inscription_id:{}~||~is_json:{}~||~content_type:{}~||~metaprotocol:{}~||~content:{:?}~||~parents:{}~||~sat:{:?}~||~timestamp:{}~||~location:{:?}~||~charms:{}~||~output_value:{:?}~||~address:{:?}~||~delegate:{:?}~||~sha:{:?}~||~rune:{:?}~||~metadata:{:?}",
                 self.height,
                 inscription_number,
                 flotsam.inscription_id,
@@ -884,7 +884,12 @@ fn write_to_file(&mut self, to_write: String, flush: bool) -> Result {
                 .iter()
                 .map(|p| p.to_string())
                 .collect::<Vec<_>>()
-                .join(","),sat.unwrap(), timestamp,(!unbound).then_some(new_satpoint), charms, new_output_value.unwrap_or(&0),  // Provide a default output value of 0 if none
+                .join(","),
+                sat.unwrap(),
+                 timestamp,
+                 (!unbound).then_some(new_satpoint),
+                  charms,
+                   new_output_value.unwrap_or(&0),  // Provide a default output value of 0 if none
         new_script_pubkey
             .and_then(|script| Some(self.chain.address_from_script(script)))  // Convert script to address
             .map_or_else(
