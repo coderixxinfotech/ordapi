@@ -4,7 +4,7 @@
   "description": "Indexer for fetching and processing inscriptions and txs from local ord instance",
   "main": "dist/index.js",
   "scripts": {
-    "start": "tsc && node dist/index.js",
+    "start": "tsc && node --max-old-space-size=4096 dist/index.js",
     "dev": "nodemon --exec ts-node src/index.ts",
     "build": "tsc",
     "test": "jest",
