@@ -885,7 +885,13 @@ fn write_to_file(&mut self, to_write: String, flush: bool) -> Result {
                 .map(|p| p.to_string())
                 .collect::<Vec<_>>()
                 .join(","),
-                sat.unwrap(),
+               match sat {
+    Some(value) => value,
+    None => {
+        eprintln!("Warning: sat is None");
+        ordinals::Sat(0) // Create a new Sat with value 0
+    }
+},
                  timestamp,
                  (!unbound).then_some(new_satpoint),
                   charms,
