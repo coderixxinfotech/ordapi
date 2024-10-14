@@ -924,7 +924,7 @@ async function check_db(): Promise<void> {
 
   // Fetching the max block_height from ord_content collection
   // const currentContentHeightDoc = await Inscription.aggregate([
-  //   { $group: { _id: null, max_height: { $max: "$genesis_height" } } }
+  //   { $group: { _id: null, max_height: { $max: "$genesis_height" } } }push
   // ]);
 
   // const current_content_height = currentContentHeightDoc.length > 0 ? currentContentHeightDoc[0].max_height : -1;
@@ -1321,7 +1321,7 @@ if (delegate_matches) {
       };
     
 
-      if(newItem.token){
+      if(newItem.token && !newItem.tags.includes("cbrc")){
         return null;
       }
     
