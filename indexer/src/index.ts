@@ -956,20 +956,20 @@ async function check_db(): Promise<void> {
 
   console.log({ url });
 
-  const result = await axios.get(url, {
-    headers: { Accept: "application/json" },
-  });
+  // const result = await axios.get(url, {
+  //   headers: { Accept: "application/json" },
+  // });
 
-  const data = result.data;
+  // const data = result.data;
   // console.log({data})
 
-if(data.inscriptions.length){
-   await BlockHashes.deleteMany({block_height: {$gt: latest_inscription_block.genesis_height}});
-    console.log(`Latest Ins and Latest Blockhash height was mismatched so deleted wrong Blockhashes`);
-    throw Error(
-      'HEIGHT MISMATCH BETWEEN INSCRIPTION AND BLOCKHASHES'
-    )
-}
+// if(data.inscriptions.length){
+//    await BlockHashes.deleteMany({block_height: {$gt: latest_inscription_block.genesis_height}});
+//     console.log(`Latest Ins and Latest Blockhash height was mismatched so deleted wrong Blockhashes`);
+//     throw Error(
+//       'HEIGHT MISMATCH BETWEEN INSCRIPTION AND BLOCKHASHES'
+//     )
+// }
    
   }
 
