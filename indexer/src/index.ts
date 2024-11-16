@@ -97,7 +97,6 @@ const ORD_VERSION = "0.18.5";
 
 // import mempoolJS from "cryptic-mempool";
 import { handlePreSaveLogic } from './insertSkippedBlock';
-import axios from 'axios';
 
 export function delay(sec: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, sec * 1000));
